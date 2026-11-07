@@ -368,7 +368,20 @@ function run_paper_analysis(run_source::Union{AbstractString, AbstractVector{<:A
     _plot_fig6(tail_y_Rm, orbit_acc.energy_centers_eV, b_tail_nT, tail_res, joinpath(out_dir, "fig6_crosstail_work.png"))
 
     # Plot Figure 5 & 7 representative trajectories if found
-    _plot_representative_ions(run_dir, work_itp, rm_m, orbit_angles_deg, orbit_res, tail_y_Rm, tail_res, out_dir)
+    _plot_representative_ions(run_dirs, work_itp, rm_m, orbit_angles_deg, orbit_res, tail_y_Rm, tail_res, out_dir)
+
+    fig_tr, _, _ = plot_trajectory(
+        length(run_dirs) == 1 ? first_dir : run_dirs;
+        species = "O2+",
+        count = 20_000,
+        max_points = 300,
+        seed = 20260906,
+        planes = ("XZ", "XY", "YZ"),
+        limits = (-4.2, 4.2),
+        boundaries = true,
+        output = joinpath(out_dir, "fig3abc_trajectories_20000.png"),
+    )
+    plt.close(fig_tr)
 
     println("Paper analysis complete: $out_dir")
     return out_dir
