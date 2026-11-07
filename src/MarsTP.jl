@@ -23,7 +23,6 @@ using FastInterpolations
 using BorisPushers
 using TestParticle
 import KernelAbstractions as KA
-import NaturalNeighbours as NN
 using VelocityDistributionFunctions
 
 import TestParticle as TP
@@ -32,7 +31,7 @@ import VelocityDistributionFunctions as VDF
 export Rm, Rinner, Router
 export project_path, data_path, resolve_project_path
 export MHDFields, SpeciesMoments, load_mhd_fields, load_mhd_moments, mhd_param
-export load_batsrus_tecplot, convert_batsrus_to_vts, interpolate_batsrus_slice_nn
+export load_batsrus_tecplot, convert_batsrus_to_vts, interpolate_batsrus_slice
 export load_gitm, load_amps, neutral_properties, hot_oxygen_density
 export O2plusSourceRates, load_o2plus_source_rates, assert_same_grid
 export calculate_cell_volumes, calculate_surface_areas, compute_o2plus_source_rates

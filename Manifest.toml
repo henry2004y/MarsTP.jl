@@ -2,7 +2,7 @@
 
 julia_version = "1.13.1"
 manifest_format = "2.1"
-project_hash = "ea70bc07ab0e330ac69b39434d1e4652f858b816"
+project_hash = "baeaed5e0131aedc045a858142a73d5f9a82281b"
 
 [[deps.ADTypes]]
 deps = ["PrecompileTools"]
@@ -1363,7 +1363,7 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 version = "1.11.0"
 
 [[deps.MarsTP]]
-deps = ["Batsrus", "BorisPushers", "CUDA", "FastInterpolations", "JLD2", "JSON", "KernelAbstractions", "LinearAlgebra", "MAT", "NaturalNeighbours", "Printf", "PyPlot", "Random", "ReadVTK", "StaticArrays", "Statistics", "TOML", "TestParticle", "VelocityDistributionFunctions", "WriteVTK"]
+deps = ["Batsrus", "BorisPushers", "CUDA", "FastInterpolations", "JLD2", "JSON", "KernelAbstractions", "LinearAlgebra", "MAT", "Printf", "PyPlot", "Random", "ReadVTK", "StaticArrays", "Statistics", "TOML", "TestParticle", "VelocityDistributionFunctions", "WriteVTK"]
 path = "."
 uuid = "61c3d403-8f34-4db7-a916-f2647c7b6c22"
 version = "0.1.0"

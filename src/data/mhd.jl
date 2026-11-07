@@ -679,21 +679,18 @@ function convert_batsrus_to_vts(
 end
 
 """
-    interpolate_batsrus_slice_nn(dat_path, x_grid, y_grid; plane="XZ", variable="O2p",
-                                 slice_coord=0.0, slice_tol=0.15, method=NN.Sibson())
+    interpolate_batsrus_slice(dat_path, u_grid, v_grid; plane="XZ", variable="O2p", slice_coord=0.0)
 
 Interpolate a 2D slice (`"XZ"`, `"XY"`, or `"YZ"` in `Rm`) of a BATSRUS `.dat` file onto
-`(x_grid, y_grid)` using `NaturalNeighbours.jl` scattered interpolation.
+`(u_grid, v_grid)` using `FastInterpolations` on the reconstructed 3D spherical grid.
 """
-function interpolate_batsrus_slice_nn(
+function interpolate_batsrus_slice(
         dat_path::AbstractString,
         u_grid::AbstractVector{<:Real},
         v_grid::AbstractVector{<:Real};
         plane::AbstractString = "XZ",
         variable::AbstractString = "O2p",
         slice_coord::Real = 0.0,
-        slice_tol::Real = 0.15,
-        method = NN.Sibson(),
     )
     resolved = resolve_project_path(dat_path)
     hdr, data, _ = Batsrus.readtecdata(resolved)
@@ -702,54 +699,65 @@ function interpolate_batsrus_slice_nn(
     ix_z = _find_var_index(hdr.variable, ("z",))
     ix_var = _find_var_index(hdr.variable, (variable,))
 
-    x = Float64.(@view data[ix_x, :])
-    y = Float64.(@view data[ix_y, :])
-    z = Float64.(@view data[ix_z, :])
-    vals = Float64.(@view data[ix_var, :])
+    x_R = @view data[ix_x, :]
+    y_R = @view data[ix_y, :]
+    z_R = @view data[ix_z, :]
+    vals = @view data[ix_var, :]
 
-    p = uppercase(String(plane))
-    u_pts, v_pts, w_pts = if p == "XZ"
-        (x, z, y)
-    elseif p == "XY"
-        (x, y, z)
-    elseif p == "YZ"
-        (y, z, x)
-    else
-        throw(ArgumentError("plane must be XZ, XY, or YZ"))
-    end
+    pole_mask = (x_R .== 0.0f0) .& (y_R .== 0.0f0)
+    r_R = sort(unique(Float64.(abs.(z_R[pole_mask]))))
+    nr = length(r_R)
+    ntheta = 61
+    nphi_unique = 120
+    nphi = nphi_unique + 1
+    theta = collect(range(0.0, pi, length = ntheta))
+    phi = collect(range(0.0, 2pi, length = nphi))
+    dtheta = pi / (ntheta - 1)
+    dphi = 2pi / nphi_unique
 
-    mask = abs.(w_pts .- Float64(slice_coord)) .<= Float64(slice_tol)
-    us = u_pts[mask]
-    vs = v_pts[mask]
-    fs = vals[mask]
-
-    # Deduplicate coincident 2D projection points (e.g., along poles)
-    seen = Dict{Tuple{Float64, Float64}, Tuple{Float64, Int}}()
-    for i in eachindex(us)
-        key = (round(us[i]; digits = 5), round(vs[i]; digits = 5))
-        if haskey(seen, key)
-            s, c = seen[key]
-            seen[key] = (s + fs[i], c + 1)
+    arr = zeros(Float64, nr, ntheta, nphi)
+    pole_counts = zeros(Int, nr, 2)
+    for k in axes(data, 2)
+        xk = Float64(x_R[k])
+        yk = Float64(y_R[k])
+        zk = Float64(z_R[k])
+        rk = hypot(xk, yk, zk)
+        ir = _nearest_sorted_index(r_R, rk)
+        thk = acos(clamp(zk / rk, -1.0, 1.0))
+        ith = clamp(round(Int, thk / dtheta) + 1, 1, ntheta)
+        vk = Float64(vals[k])
+        if ith == 1 || ith == ntheta
+            pidx = ith == 1 ? 1 : 2
+            c = pole_counts[ir, pidx] + 1
+            pole_counts[ir, pidx] = c
+            arr[ir, ith, 1] += (vk - arr[ir, ith, 1]) / c
         else
-            seen[key] = (fs[i], 1)
+            phk = mod2pi(atan(yk, xk))
+            iph = mod(round(Int, phk / dphi), nphi_unique) + 1
+            arr[ir, ith, iph] = vk
         end
     end
-    n_u = length(seen)
-    u_uniq = Vector{Float64}(undef, n_u)
-    v_uniq = Vector{Float64}(undef, n_u)
-    f_uniq = Vector{Float64}(undef, n_u)
-    for (idx, ((uk, vk), (s, c))) in enumerate(seen)
-        u_uniq[idx] = uk
-        v_uniq[idx] = vk
-        f_uniq[idx] = s / c
+    for ir in 1:nr, iph in 2:nphi
+        arr[ir, 1, iph] = arr[ir, 1, 1]
+        arr[ir, ntheta, iph] = arr[ir, ntheta, 1]
+    end
+    for ith in 2:(ntheta - 1), ir in 1:nr
+        arr[ir, ith, nphi] = arr[ir, ith, 1]
     end
 
-    itp = NN.interpolate(u_uniq, v_uniq, f_uniq)
+    itp = TP.build_interpolator(TP.StructuredGrid, arr, r_R, theta, phi)
+    p = uppercase(String(plane))
+    p in ("XZ", "XY", "YZ") || throw(ArgumentError("plane must be XZ, XY, or YZ"))
+    w0 = Float64(slice_coord)
     nu, nv = length(u_grid), length(v_grid)
-    u_eval = [Float64(u_grid[i]) for i in 1:nu, j in 1:nv]
-    v_eval = [Float64(v_grid[j]) for i in 1:nu, j in 1:nv]
-    z_eval = itp(vec(u_eval), vec(v_eval); method = method)
-    return reshape(Float64.(z_eval), nu, nv)
+    out = Matrix{Float64}(undef, nu, nv)
+    for j in 1:nv, i in 1:nu
+        u = Float64(u_grid[i])
+        v = Float64(v_grid[j])
+        pt = p == "XZ" ? SA[u, w0, v] : p == "XY" ? SA[u, v, w0] : SA[w0, u, v]
+        out[i, j] = itp(pt)
+    end
+    return out
 end
 
 function _select_batsrus_electric(g, electric_field)
