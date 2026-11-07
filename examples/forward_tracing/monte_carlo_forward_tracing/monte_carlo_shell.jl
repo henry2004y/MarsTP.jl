@@ -110,10 +110,17 @@ module ShellMonteCarlo
             Threads.@threads for q in eachindex(particles)
                 p = particles[q]
                 if p.W > 0
-                    r = trace_particle(p.x, p.v, param, c)
-                    tr = (; t = [a[1] for a in r.history], u = [SVector{6, Float64}(a[2], a[3], a[4], a[5], a[6], a[7]) for a in r.history])
-                    w_full = trajectory_work(tr, work_itp; species = "O2+", mode = fast_summary ? :summary : c.work_mode, power = fast_summary ? false : c.save_power)
-                    results[q] = merge(r, (; tr, work_summary = w_full.summary, work_result = fast_summary ? nothing : w_full))
+                    r = trace_particle(p.x, p.v, param, c; compute_step_work = false)
+                    need_work = !c.skip_inner_and_trapped || r.status == "outer" || !isempty(r.residence)
+                    if need_work
+                        tr = (; t = [a[1] for a in r.history], u = [SVector{6, Float64}(a[2], a[3], a[4], a[5], a[6], a[7]) for a in r.history])
+                        w_full = trajectory_work(tr, work_itp; species = "O2+", mode = fast_summary ? :summary : c.work_mode, power = fast_summary ? false : c.save_power)
+                        w_sum = w_full.summary
+                        results[q] = merge(r, (; tr, work = w_sum.total_eV, residual = r.dK - w_sum.total_eV, work_summary = w_sum, work_result = fast_summary ? nothing : w_full))
+                    else
+                        tr = (; t = [0.0, r.time], u = [SVector{6, Float64}(p.x..., p.v...), SVector{6, Float64}(r.x..., r.v...)])
+                        results[q] = merge(r, (; tr, work_summary = nothing, work_result = nothing))
+                    end
                 else
                     results[q] = _zero_result(p, work_itp, c)
                 end
@@ -216,7 +223,7 @@ module ShellMonteCarlo
         return best, flag
     end
 
-    function trace_particle(x0, v0, param, c::Config; keep_history = true)
+    function trace_particle(x0, v0, param, c::Config; keep_history = true, compute_step_work::Bool = true)
         qm = param.q2m; charge = TP.SpeciesDict["O2+"].q; mass = TP.SpeciesDict["O2+"].m
         inner = Rm + c.absorption_altitude_km * 1.0e3
         lo, hi = c.detector .- c.side / 2, c.detector .+ c.side / 2
@@ -260,7 +267,9 @@ module ShellMonteCarlo
                 entry != 0 && s0 >= 0 && push!(events, [ta, entry, 1, xa..., va...])
                 exit != 0 && s1 > 0 && push!(events, [tb, exit, -1, xb..., vb...])
             end
-            work += charge * dot(Vec(param.E((x + xn) / 2, (t + tn) / 2)), (v + vn) / 2) * (tn - t) / TP.eV
+            if compute_step_work
+                work += charge * dot(Vec(param.E((x + xn) / 2, (t + tn) / 2)), (v + vn) / 2) * (tn - t) / TP.eV
+            end
             x, v, t, E, B = xn, vn, tn, En, Bn
             keep_history && push!(history, Row(t, x..., v...))
             if flag != 1
