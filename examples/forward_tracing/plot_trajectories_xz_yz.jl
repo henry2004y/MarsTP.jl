@@ -8,7 +8,7 @@ const PREVIEW = get(ENV, "TRAJECTORY_PREVIEW", joinpath(@__DIR__, "images", "tra
 const ALTITUDE = parse(Float64, get(ENV, "RELEASE_ALTITUDE_KM", "800"))
 mkpath(dirname(abspath(PREVIEW)))
 
-cmd = `$(Base.julia_cmd()) --startup-file=no --threads=4 --project=$ROOT $(joinpath(@__DIR__, "sphere_trajectories.jl"))`
+cmd = `$(Base.julia_cmd()) --startup-file=no --threads=auto --project=$ROOT $(joinpath(@__DIR__, "sphere_trajectories.jl"))`
 records = [JSON.parse(line) for line in eachline(cmd) if startswith(strip(line), "{")]
 
 colors = Dict("inner" => "#b46924", "outer" => "#16749a", "time_limit" => "#9b418e")
@@ -17,6 +17,13 @@ groups = (
     [r for r in records if r["points"][1][1] > 0.0],
     [r for r in records if r["points"][1][1] <= 0.0],
 )
+for (selected, label) in zip(groups, ("All", "Dayside", "Nightside"))
+    n_outer = count(r -> r["status"] == "outer", selected)
+    n_inner = count(r -> r["status"] == "inner", selected)
+    n_tlim = count(r -> r["status"] == "time_limit", selected)
+    tmax = isempty(selected) ? 0.0 : maximum(Float64(r["time"]) for r in selected)
+    println("$label ($(length(selected))): outer=$n_outer, inner=$n_inner, time_limit=$n_tlim, max_time=$(round(tmax, digits = 2)) s")
+end
 
 fig, axes = PyPlot.plt.subplots(3, 2; figsize = (11, 16), layout = "constrained")
 for (row, (selected, title)) in enumerate(zip(groups, ("All O2+", "Dayside O2+", "Nightside O2+")))
@@ -41,12 +48,13 @@ for (row, (selected, title)) in enumerate(zip(groups, ("All O2+", "Dayside O2+",
         angle = range(0.0, 2pi, length = 500)
         radius = (3390.0 + ALTITUDE) / 3390.0
         ax.plot(radius .* cos.(angle), radius .* sin.(angle); color = "#999999", lw = 0.7)
-        ax.set(xlim = (-4.15, 4.15), ylim = (-4.15, 4.15), aspect = "equal",
-            xlabel = col == 1 ? "X / R_M" : "Y / R_M", ylabel = "Z / R_M", title = title)
+        ax.set(
+            xlim = (-4.15, 4.15), ylim = (-4.15, 4.15), aspect = "equal",
+            xlabel = col == 1 ? "X / R_M" : "Y / R_M", ylabel = "Z / R_M", title = title
+        )
         ax.grid(alpha = 0.12)
     end
 end
 fig.savefig(PREVIEW; dpi = 170)
 PyPlot.plt.close(fig)
 println("Preview: ", PREVIEW)
-

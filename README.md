@@ -165,7 +165,7 @@ each record carries its original particle ID.
   - `sphere_trajectories.jl`, `plot_sphere_trajectories.jl`, `plot_trajectories_xz_yz.jl`: 800 km spherical shell release trajectories in XZ/YZ planes.
   - `hemisphere_work.jl`, `plot_hemisphere_work.jl`: Dayside and nightside convective, Hall, and total work maps.
   - `monte_carlo_shell.jl`, `analyze_monte_carlo.jl`, `maxwellian_source.jl`: Weighted Maxwellian shell Monte Carlo tracing and analysis.
-  - `monte_carlo_forward_tracing/`: Full 500 km shell Monte Carlo suite (`monte_carlo_shell.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
+  - `monte_carlo_forward_tracing/`: Full shell Monte Carlo suite (`monte_carlo_shell.jl`, `analyze_paper_results.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
 - **Backward Tracing (`examples/backward_tracing/`)**:
   - `random_probe_backtrace.jl`, `plot_probe_backtrace.jl`: Random-velocity backtrace trajectories from `(0, 0, 2 Rm)`.
   - `probe_vdf_integrated.jl`, `plot_probe_vdf.jl`, `check_probe_vdf_grid.jl`: Velocity-integrated backtraced VDFs.
@@ -222,17 +222,18 @@ Run `julia --project=. test/runtests.jl` for analytic tests and
 [src/visualization](src/visualization/README.md) provides Julia (`PyPlot`) plots of Mars, BS/MPB and two- or three-dimensional trajectories (`plot_mars`, `bs_mpb`, `plot_mars_context`, `load_trajectories`, `plot_trajectory`), with species and particle-ID selection from forward or backward trajectory files.
 
 
-## Save forward electric work
+## Save forward electric work and compact trajectory archiving
 
-Pass the same-grid field interpolators when writing each full-cadence batch:
+Pass the same-grid field interpolators when writing each trajectory batch:
 
 ```julia
-itp = build_field_work_interpolators() # for the default MarsTP field grid
+itp = build_field_work_interpolators(; include_extended = true) # includes gradpe & resistive
 write_trajectory_batch("outputs/new_run/trajectories_00001.jld2", solutions;
     particle_ids=collect(1:length(solutions)), rate_weights_s=rate_weights_s,
-    work_itp=itp, work_mode=:steps, save_power=false)
+    work_itp=itp, work_mode=:steps, save_power=false,
+    packed=true, state_eltype=Float32)
 foreach_saved_trajectory("outputs/new_run/trajectories_00001.jld2") do r
-    dw = r.work.steps["hall"]       # eV, N-1 intervals
+    dw = r.work.steps["hall"]       # eV, N-1 intervals ("total", "conv", "hall", "gradpe")
     cumulative = vcat(0., cumsum(dw))
     mean_power = dw ./ diff(r.trajectory.t) # eV/s, actual interval duration
     summary = r.work.summary
@@ -243,25 +244,36 @@ Use `work_mode=:summary` for signed totals, positive/negative interval sums,
 initial/final kinetic energy, final and maximum absolute energy-closure residuals,
 and final field-sum residual, without allocating interval-work histories.
 `save_power=true` additionally saves instantaneous endpoint power (N samples).
-Default `:none` preserves existing writer behavior. New diagnostic batches use
-format 2; the reader also accepts format 1 and legacy files (`r.work === nothing`).
-The 7-row state matrix and physical particle weights are unchanged.
+Default `:none` preserves existing writer behavior. `foreach_saved_trajectory` and
+`load_trajectories` transparently read format 3 (`packed=true`), format 2, format 1,
+and legacy files (`r.work === nothing`).
 
-Work is midpoint q E dot v dt along the same total-field trajectory, with charge
-from the selected species. Compute at full integration cadence before thinning;
-this writer cannot reconstruct missing steps. No fixed 0.1 s assumption is made.
-Total-field work is independently evaluated. Positive/negative sums retain their
-signs and depend on temporal resolution. Near-zero net work has no stable fraction.
-For ensemble fractions sum weighted work before dividing, rather than averaging
-particle fractions. Detector-conditioned analysis uses work up to the relevant
-visit and the chosen crossing/residence weights; terminal work is not a substitute.
-No field-removal counterfactual is implied by these fractions.
+### Compact Storage Options (`ShellMonteCarlo.Config` & `write_trajectory_batch`)
 
-The canonical `examples/forward_tracing/monte_carlo_forward_tracing/monte_carlo_shell.jl`
-enables `Config(work_mode=:steps, save_power=false)` by default and uses the
-validated actual VTK radial axis for all three components. It records diagnostics
-for each batch, including zero-rate particles (empty interval arrays, zero work).
-Its CSV total-work diagnostic now uses the same midpoint convention; previous
-run outputs are retained and their earlier quadrature values are not rewritten.
-The current MC writer receives every integration step. If trajectory thinning is
-introduced later, work must be accumulated on internal steps before that thinning.
+In `examples/forward_tracing/monte_carlo_forward_tracing/monte_carlo_shell.jl`, `ShellMonteCarlo.Config` supports the following storage and physics options for large-scale local and cluster runs:
+
+- **`packed_trajectories::Bool = true` (`packed=true` in `write_trajectory_batch`, format v3)**:
+  Packs all trajectories in each batch into a single contiguous `6 × TotalPoints` matrix (`states`: `x, y, z, vx, vy, vz`) and `n_comp × TotalIntervals` work matrix (`work/dW_eV`) indexed by `point_offsets`, eliminating per-particle HDF5/JLD2 group metadata overhead.
+- **`trajectory_float32::Bool = true` (`state_eltype=Float32` in `write_trajectory_batch`)**:
+  Stores saved trajectory positions, velocities, and step work increments in `Float32` while keeping full `Float64` precision during integration and summary accumulation.
+- **Dropped Redundant `t` Array**:
+  Format v3 omits the per-step `t` vector for uniform-step trajectories and instead stores only three scalars per particle (`t_start_s`, `dt_step_s`, and exact boundary-clipped `t_end_s`), reconstructing exact `Float64` timestamps on read (`2.35x` smaller batch files than per-particle `Float64` groups).
+- **`skip_inner_and_trapped::Bool = false`**:
+  When `true`, skips writing `inner` (absorbed at 200 km) and low-altitude trapped (`time_limit`) particles to `particles.csv` and `trajectories_*.jld2` (while still recording exact global termination counts in `completion.toml`). Since `time_limit` and `inner` particles account for ~85.7% of all integration steps without reaching magnetospheric detectors, skipping them reduces storage by ~7x.
+- **`save_trajectories::Symbol = :all`**:
+  Controls which trajectories are written to `trajectories_*.jld2`:
+  - `:all` — save all trajectories (or all `outer`/probe trajectories when `skip_inner_and_trapped=true`).
+  - `:outer_only` — save all escaping (`outer`) trajectories plus any probe hits (`~6.8 GB` per $10^6$ launched particles at `save_stride=5`).
+  - `:roi_and_sample` — save only trajectories intersecting the paper's virtual spacecraft detector tubes (circular $2\,R_M$ orbit and cross-tail current sheet transect) plus an unbiased random sample of escaping trajectories (`trajectory_sample_size = 20_000`, recorded in `plot_sample_ids.toml`) (`~1.6 GB` per $10^6$ launched particles at `save_stride=5`).
+  - `:probes_only` — save only trajectories crossing the primary detector cube.
+  - `:none` — save `particles.csv` and probe files only.
+- **`save_stride::Int = 1`**:
+  Subsamples saved trajectory points by `save_stride` (always retaining the exact initial and terminal boundary states) after full-cadence tracing.
+- **`fields_path::String = ""` & `include_gradpe_work::Bool = false`**:
+  Selects a custom `.vts` field file (e.g., `data/mars_fields_with_crustal.vts` or `data/mars_fields_without_crustal.vts`) and enables 4-component Ohm's-law work tracking (`total`, `conv`, `hall`, `gradpe`).
+
+To reproduce the paper's virtual spacecraft and cumulative work figures (`Figures 3–7`) from a saved run directory:
+
+```sh
+julia --threads=8 --project=. examples/forward_tracing/monte_carlo_forward_tracing/analyze_paper_results.jl outputs/mc_400km_crustal_1M outputs/mc_400km_crustal_1M_paper
+```

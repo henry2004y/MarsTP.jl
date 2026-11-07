@@ -41,52 +41,70 @@ With `energy_edges_eV`, `omni_def` additionally contains direction-averaged DEF
 and `option`. Without energy edges it is `nothing`. Use `detector_omni_def`
 for a standalone energy spectrum without allocating velocity PSD bins.
 """
-function forward_psd(solutions; detector_m, side_m, vlim, vgrid,
-        species="O2+", rate_weights_s, option="3D", velocity_unit=:m_s,
-        coordinate_system="unspecified", storage=:dense, energy_edges_eV=nothing)
-    acc=ForwardPSDAccumulator(;detector_m,side_m,vlim,vgrid,species,velocity_unit,coordinate_system,energy_edges_eV)
-    trajectories=hasproperty(solutions,:t) ? (solutions,) :
+function forward_psd(
+        solutions; detector_m, side_m, vlim, vgrid,
+        species = "O2+", rate_weights_s, option = "3D", velocity_unit = :m_s,
+        coordinate_system = "unspecified", storage = :dense, energy_edges_eV = nothing
+    )
+    acc = ForwardPSDAccumulator(; detector_m, side_m, vlim, vgrid, species, velocity_unit, coordinate_system, energy_edges_eV)
+    trajectories = hasproperty(solutions, :t) ? (solutions,) :
         solutions isa AbstractVector ? solutions : solutions.u
     rate_weights_s isa AbstractVector || rate_weights_s isa Tuple ||
         throw(ArgumentError("rate_weights_s must contain one rate per trajectory"))
-    length(trajectories)==length(rate_weights_s) ||
+    length(trajectories) == length(rate_weights_s) ||
         throw(ArgumentError("One rate_weights_s entry is required per trajectory"))
-    for (i,traj) in enumerate(trajectories)
-        accumulate_forward_psd!(acc,traj;rate_weight_s=rate_weights_s[i],particle_id=i)
+    for (i, traj) in enumerate(trajectories)
+        accumulate_forward_psd!(acc, traj; rate_weight_s = rate_weights_s[i], particle_id = i)
     end
-    return finish_forward_psd(acc;option,storage)
+    return finish_forward_psd(acc; option, storage)
 end
 
 function _psd_edges(vlim, vgrid, velocity_unit)
     scale = velocity_unit == :m_s ? 1.0 : velocity_unit == :km_s ? 1000.0 :
         throw(ArgumentError("velocity_unit must be :m_s or :km_s"))
-    limits = vlim isa Real ? ntuple(_ -> (-vlim,vlim), 3) :
-        length(vlim)==2 && all(x -> x isa Real, vlim) ? ntuple(_ -> vlim, 3) : vlim
-    counts = vgrid isa Integer ? (vgrid,vgrid,vgrid) : vgrid
-    length(limits)==3 && length(counts)==3 || throw(ArgumentError("Expected three axes"))
+    limits = vlim isa Real ? ntuple(_ -> (-vlim, vlim), 3) :
+        length(vlim) == 2 && all(x -> x isa Real, vlim) ? ntuple(_ -> vlim, 3) : vlim
+    counts = vgrid isa Integer ? (vgrid, vgrid, vgrid) : vgrid
+    length(limits) == 3 && length(counts) == 3 || throw(ArgumentError("Expected three axes"))
     return ntuple(3) do k
         counts[k] isa Integer && !(counts[k] isa Bool) && counts[k] > 0 ||
             throw(ArgumentError("vgrid must specify positive integer bin counts"))
         lim = limits[k]
-        length(lim)==2 || throw(ArgumentError("Each vlim must be (min,max)"))
-        lo, hi = Float64(lim[1])*scale, Float64(lim[2])*scale
-        isfinite(lo) && isfinite(hi) && hi > lo && isfinite(hi-lo) ||
+        length(lim) == 2 || throw(ArgumentError("Each vlim must be (min,max)"))
+        lo, hi = Float64(lim[1]) * scale, Float64(lim[2]) * scale
+        isfinite(lo) && isfinite(hi) && hi > lo && isfinite(hi - lo) ||
             throw(ArgumentError("Velocity limits must be finite and increasing"))
-        e = collect(range(lo,hi; length=counts[k]+1))
+        e = collect(range(lo, hi; length = counts[k] + 1))
         all(>(0), diff(e)) || throw(ArgumentError("Velocity bins are too narrow"))
         e
     end
 end
 
+@inline function _finite_psd_state6(u)
+    return length(u) >= 6 &&
+        @inbounds(
+        isfinite(u[1]) && isfinite(u[2]) && isfinite(u[3]) &&
+            isfinite(u[4]) && isfinite(u[5]) && isfinite(u[6])
+    )
+end
+
+@inline function _is_strictly_increasing(t)
+    n = length(t)
+    @inbounds for i in 1:(n - 1)
+        t[i + 1] > t[i] || return false
+    end
+    return true
+end
+
 function _psd_trajectory(sol, sp)
     while !hasproperty(sol, :t)
-        hasproperty(sol, :u) && length(sol.u)==1 ||
+        hasproperty(sol, :u) && length(sol.u) == 1 ||
             throw(ArgumentError("Expected a trajectory or single-member ensemble"))
         sol = only(sol.u)
     end
-    length(sol.t)==length(sol.u) && !isempty(sol.t) ||
+    length(sol.t) == length(sol.u) && !isempty(sol.t) ||
         throw(ArgumentError("Trajectory needs matching nonempty times and states"))
-    all(isfinite, sol.t) && all(u -> length(u)>=6 && all(isfinite,u[1:6]), sol.u) ||
+    all(isfinite, sol.t) && all(_finite_psd_state6, sol.u) ||
         throw(ArgumentError("Trajectory has invalid times or Cartesian states"))
     if hasproperty(sol, :retcode)
         sol.retcode in (TP.ReturnCode.Success, TP.ReturnCode.Terminated) ||
@@ -95,10 +113,10 @@ function _psd_trajectory(sol, sp)
     if hasproperty(sol, :prob) && hasproperty(sol.prob, :p)
         p = sol.prob.p
         if hasproperty(p, :q2m) && hasproperty(p, :m)
-            isapprox(p.q2m, sp.q/sp.m; rtol=1e-10) && isapprox(p.m, sp.m; rtol=1e-10) ||
+            isapprox(p.q2m, sp.q / sp.m; rtol = 1.0e-10) && isapprox(p.m, sp.m; rtol = 1.0e-10) ||
                 throw(ArgumentError("Trajectory species does not match requested species"))
         elseif p isa Tuple && length(p) >= 4
-            isapprox(p[1], sp.q/sp.m; rtol=1e-10) && isapprox(p[2], sp.m; rtol=1e-10) ||
+            isapprox(p[1], sp.q / sp.m; rtol = 1.0e-10) && isapprox(p[2], sp.m; rtol = 1.0e-10) ||
                 throw(ArgumentError("Trajectory species does not match requested species"))
         end
     end

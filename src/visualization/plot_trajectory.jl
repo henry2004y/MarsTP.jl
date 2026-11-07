@@ -40,6 +40,26 @@ function _extract_state_time_xyz(state::AbstractMatrix)
     end
 end
 
+function _extract_subsampled_state_time_xyz(state::AbstractMatrix, max_points::Int)
+    if size(state, 1) == 7 && size(state, 2) != 7
+        ix = _subsample_indices(size(state, 2), max_points)
+        m = length(ix)
+        t = Vector{Float64}(undef, m)
+        xyz = Matrix{Float64}(undef, m, 3)
+        @inbounds for (r, c) in enumerate(ix)
+            t[r] = state[1, c]
+            xyz[r, 1] = state[2, c]
+            xyz[r, 2] = state[3, c]
+            xyz[r, 3] = state[4, c]
+        end
+        return t, xyz
+    else
+        t_all, xyz_all = _extract_state_time_xyz(state)
+        ix = _subsample_indices(length(t_all), max_points)
+        return t_all[ix], xyz_all[ix, :]
+    end
+end
+
 """
     load_trajectories(source; species=nothing, assume_species=nothing, count=5000,
                       max_points=300, seed=20260906, position_unit=nothing,
@@ -62,8 +82,14 @@ function load_trajectories(
     if count < 1 || max_points < 2 || !isfinite(rm_m) || rm_m <= 0
         throw(ArgumentError("count >= 1, max_points >= 2, rm_m > 0 required"))
     end
-    wanted = particle_ids === nothing ? nothing : Set{Int}(Int.(particle_ids))
     src_path = String(source)
+    wanted = if particle_ids !== nothing
+        Set{Int}(Int.(particle_ids))
+    elseif isdir(src_path) && isfile(joinpath(src_path, "plot_sample_ids.toml"))
+        Set{Int}(Int.(TOML.parsefile(joinpath(src_path, "plot_sample_ids.toml"))["particle_ids"]))
+    else
+        nothing
+    end
     files = if isdir(src_path)
         jld_files = sort(filter(p -> occursin(r"^trajectories_.*\.jld2$", basename(p)), readdir(src_path; join = true)))
         if !isempty(jld_files)
@@ -123,24 +149,128 @@ function load_trajectories(
                 kind = haskey(f, "species") ? String(f["species"]) : get(meta, "species", nothing)
                 frame = haskey(f, "coordinate_system") ? String(f["coordinate_system"]) : String(get(meta, "coordinate_system", "unspecified"))
                 found = false
-                for key in keys(f)
-                    if startswith(key, "p") && all(isdigit, SubString(key, 2)) && haskey(f, "$key/state")
-                        found = true
-                        state = f["$key/state"]
-                        if !(state isa AbstractMatrix) || !(size(state, 1) == 7 || size(state, 2) == 7)
-                            throw(ArgumentError("Expected 7xN or Nx7 SI state: $path:$key"))
+                if haskey(f, "format_version") && f["format_version"] == 3
+                    ids = f["particle_ids"]
+                    point_offsets = f["point_offsets"]
+                    t_start_s = f["t_start_s"]
+                    dt_step_s = f["dt_step_s"]
+                    t_end_s = f["t_end_s"]
+                    times_fallback = haskey(f, "times_s") ? f["times_s"] : nothing
+                    states = f["states"]
+                    known = (kind === nothing || isempty(String(kind))) ? assume_species : String(kind)
+                    if species !== nothing && known === nothing
+                        throw(ArgumentError("Species metadata missing; supply assume_species explicitly"))
+                    end
+                    found = !isempty(ids)
+                    if !(species !== nothing && known != String(species))
+                        for (i, raw_pid) in enumerate(ids)
+                            pid = Int(raw_pid)
+                            if wanted !== nothing && !(pid in wanted)
+                                continue
+                            end
+                            p0 = Int(point_offsets[i])
+                            p1 = Int(point_offsets[i + 1]) - 1
+                            npts = p1 - p0 + 1
+                            npts < 2 && continue
+                            eligible += 1
+                            take_idx = if length(selected) < count
+                                length(selected) + 1
+                            else
+                                j = rand(rng, 1:eligible)
+                                j <= count ? j : 0
+                            end
+                            if take_idx > 0
+                                ix = _subsample_indices(npts, Int(max_points))
+                                m = length(ix)
+                                t_sub = Vector{Float64}(undef, m)
+                                xyz_sub = Matrix{Float64}(undef, m, 3)
+                                t0 = Float64(t_start_s[i])
+                                dt = Float64(dt_step_s[i])
+                                tend = Float64(t_end_s[i])
+                                @inbounds for (r, k) in enumerate(ix)
+                                    col = p0 + k - 1
+                                    t_sub[r] = if times_fallback !== nothing && !isfinite(dt)
+                                        Float64(times_fallback[col])
+                                    elseif k == npts
+                                        tend
+                                    elseif k == 1
+                                        t0
+                                    else
+                                        t0 + (k - 1) * dt
+                                    end
+                                    xyz_sub[r, 1] = Float64(states[1, col])
+                                    xyz_sub[r, 2] = Float64(states[2, col])
+                                    xyz_sub[r, 3] = Float64(states[3, col])
+                                end
+                                item = Dict{String, Any}(
+                                    "path" => path,
+                                    "id" => pid,
+                                    "species" => known === nothing ? "unspecified" : String(known),
+                                    "coordinate_system" => frame,
+                                    "unit" => "m",
+                                    "times_s" => t_sub,
+                                    "points" => xyz_sub,
+                                )
+                                if take_idx > length(selected)
+                                    push!(selected, item)
+                                else
+                                    selected[take_idx] = item
+                                end
+                            end
                         end
-                        npts = size(state, 1) == 7 && size(state, 2) != 7 ? size(state, 2) : size(state, 1)
-                        npts < 2 && continue
-                        rec_species = haskey(f, "$key/species") ? String(f["$key/species"]) : kind
-                        consider!(Dict{String, Any}(
-                            "path" => path,
-                            "key" => key,
-                            "id" => parse(Int, SubString(key, 2)),
-                            "species" => rec_species,
-                            "coordinate_system" => frame,
-                            "unit" => "m",
-                        ))
+                    end
+                else
+                    for key in keys(f)
+                        if startswith(key, "p") && all(isdigit, SubString(key, 2)) && haskey(f, "$key/state")
+                            found = true
+                            pid = parse(Int, SubString(key, 2))
+                            if wanted !== nothing && !(pid in wanted)
+                                continue
+                            end
+                            rec_species = haskey(f, "$key/species") ? String(f["$key/species"]) : kind
+                            known = (rec_species === nothing || isempty(String(rec_species))) ? assume_species : String(rec_species)
+                            if species !== nothing && known === nothing
+                                throw(ArgumentError("Species metadata missing; supply assume_species explicitly"))
+                            end
+                            if species !== nothing && known != String(species)
+                                continue
+                            end
+                            state = f["$key/state"]
+                            if !(state isa AbstractMatrix) || !(size(state, 1) == 7 || size(state, 2) == 7)
+                                throw(ArgumentError("Expected 7xN or Nx7 SI state: $path:$key"))
+                            end
+                            npts = size(state, 1) == 7 && size(state, 2) != 7 ? size(state, 2) : size(state, 1)
+                            npts < 2 && continue
+                            eligible += 1
+                            if length(selected) < count
+                                t_sub, xyz_sub = _extract_subsampled_state_time_xyz(state, Int(max_points))
+                                push!(
+                                    selected, Dict{String, Any}(
+                                        "path" => path,
+                                        "id" => pid,
+                                        "species" => known === nothing ? "unspecified" : String(known),
+                                        "coordinate_system" => frame,
+                                        "unit" => "m",
+                                        "times_s" => t_sub,
+                                        "points" => xyz_sub,
+                                    )
+                                )
+                            else
+                                j = rand(rng, 1:eligible)
+                                if j <= count
+                                    t_sub, xyz_sub = _extract_subsampled_state_time_xyz(state, Int(max_points))
+                                    selected[j] = Dict{String, Any}(
+                                        "path" => path,
+                                        "id" => pid,
+                                        "species" => known === nothing ? "unspecified" : String(known),
+                                        "coordinate_system" => frame,
+                                        "unit" => "m",
+                                        "times_s" => t_sub,
+                                        "points" => xyz_sub,
+                                    )
+                                end
+                            end
+                        end
                     end
                 end
                 found || throw(ArgumentError("No saved trajectories in $path; PSD arrays cannot reconstruct paths"))
@@ -165,14 +295,16 @@ function load_trajectories(
                 ix = _subsample_indices(length(times_raw), Int(max_points))
                 r["points"] = pts[ix, :]
                 r["times_s"] = times_raw[ix]
-                consider!(Dict{String, Any}(
-                    "path" => path,
-                    "id" => Int(r["id"]),
-                    "species" => get(r, "species", get(meta, "species", nothing)),
-                    "coordinate_system" => String(get(r, "coordinate_system", get(meta, "coordinate_system", "unspecified"))),
-                    "unit" => unit,
-                    "raw" => r,
-                ))
+                consider!(
+                    Dict{String, Any}(
+                        "path" => path,
+                        "id" => Int(r["id"]),
+                        "species" => get(r, "species", get(meta, "species", nothing)),
+                        "coordinate_system" => String(get(r, "coordinate_system", get(meta, "coordinate_system", "unspecified"))),
+                        "unit" => unit,
+                        "raw" => r,
+                    )
+                )
             end
         else
             throw(ArgumentError("Unsupported trajectory format: $ext"))
@@ -181,32 +313,26 @@ function load_trajectories(
 
     isempty(selected) && throw(ArgumentError("No trajectories match the requested species"))
 
-    result = Dict{String, Any}[]
-    for item in selected
-        times, xyz = if haskey(item, "key")
-            jldopen(item["path"], "r") do f
-                state = f["$(item["key"])/state"]
-                t_all, xyz_all = _extract_state_time_xyz(state)
-                ix = _subsample_indices(length(t_all), Int(max_points))
-                t_all[ix], xyz_all[ix, :]
-            end
+    result = Vector{Dict{String, Any}}(undef, length(selected))
+    for (idx, item) in enumerate(selected)
+        times, xyz = if haskey(item, "times_s")
+            item["times_s"]::Vector{Float64}, item["points"]::Matrix{Float64}
         else
             r = item["raw"]
             r["times_s"]::Vector{Float64}, r["points"]::Matrix{Float64}
         end
         all(isfinite, xyz) && all(isfinite, times) || throw(ArgumentError("Nonfinite trajectory"))
-        dt = diff(times)
-        (all(>(0), dt) || all(<(0), dt)) || throw(ArgumentError("Trajectory times must be strictly monotonic"))
+        _is_strictly_monotonic(times) || throw(ArgumentError("Trajectory times must be strictly monotonic"))
         unit = String(item["unit"])
         scale = unit == "m" ? (1.0 / Float64(rm_m)) : (unit == "km" ? (1000.0 / Float64(rm_m)) : 1.0)
-        push!(result, Dict{String, Any}(
+        result[idx] = Dict{String, Any}(
             "id" => Int(item["id"]),
             "source" => String(item["path"]),
-            "points" => xyz .* scale,
+            "points" => scale == 1.0 ? xyz : xyz .* scale,
             "times_s" => times,
             "species" => String(item["species"]),
             "coordinate_system" => String(item["coordinate_system"]),
-        ))
+        )
     end
     return result
 end
@@ -249,7 +375,7 @@ function plot_trajectory(
     axes = Any[]
     cmap = PyPlot.plt.get_cmap("turbo")
     nrec = length(records)
-    colors = [cmap(nrec == 1 ? 0.5 : 0.05 + 0.90 * (i - 1) / (nrec - 1)) for i in 1:nrec]
+    colors = [cmap(nrec == 1 ? 0.5 : 0.05 + 0.9 * (i - 1) / (nrec - 1)) for i in 1:nrec]
 
     for (k, plane) in enumerate(plane_list)
         ax = plane == "3D" ?
@@ -257,14 +383,31 @@ function plot_trajectory(
             fig.add_subplot(1, length(plane_list), k)
         push!(axes, ax)
         plot_mars_context(ax, plane; boundaries = boundaries, xmin = lims[1], x_slice = x_slice)
-        for (r, color) in zip(records, colors)
-            p = r["points"]::Matrix{Float64}
-            if plane == "3D"
+        if plane == "3D"
+            for (r, color) in zip(records, colors)
+                p = r["points"]::Matrix{Float64}
                 ax.plot(p[:, 1], p[:, 2], p[:, 3]; color = color, lw = 0.5, alpha = 0.4)
-            else
-                i, j = _PLANE_AXES[plane]
-                ax.plot(p[:, i], p[:, j]; color = color, lw = 0.5, alpha = 0.4, zorder = 2)
             end
+        else
+            i, j = _PLANE_AXES[plane]
+            segments = Matrix{Float64}[
+                let p = r["points"]::Matrix{Float64}
+                    seg = Matrix{Float64}(undef, size(p, 1), 2)
+                    @inbounds for k in 1:size(p, 1)
+                        seg[k, 1] = p[k, i]
+                        seg[k, 2] = p[k, j]
+                    end
+                    seg
+                end for r in records
+            ]
+            lc = PyPlot.matplotlib.collections.LineCollection(
+                segments;
+                colors = colors,
+                linewidths = 0.5,
+                alpha = 0.4,
+                zorder = 2,
+            )
+            ax.add_collection(lc)
         end
         if plane == "3D"
             ax.set_xlim(lims)
@@ -295,4 +438,3 @@ function plot_trajectory(
     end
     return fig, axes, records
 end
-

@@ -1,14 +1,14 @@
-struct GITMAtmosphere
-    nO::Any
-    nCO2::Any
-    Tn::Any
-    PH_Op::Any
-    PH_Op2::Any
-    PH_CO2p::Any
+struct GITMAtmosphere{NO, NCO2, TN, POP, POP2, PCO2P}
+    nO::NO
+    nCO2::NCO2
+    Tn::TN
+    PH_Op::POP
+    PH_Op2::POP2
+    PH_CO2p::PCO2P
 end
 
-struct AMPSAtmosphere
-    nO_hot::Any
+struct AMPSAtmosphere{NOH}
+    nO_hot::NOH
 end
 
 function load_gitm(path = data_path("gitm_sph.mat"))
@@ -53,6 +53,14 @@ function neutral_properties(gitm::GITMAtmosphere, r, theta, phi)
     nO = dh / HO > 20.0 ? 0.0 : nO0 * exp(-dh / HO)
     nCO2 = dh / HCO2 > 20.0 ? 0.0 : nCO20 * exp(-dh / HCO2)
     return (nO = nO, nCO2 = nCO2, Tn = Tn0)
+end
+
+@inline function _neutral_temperature(gitm::GITMAtmosphere, x)
+    r, theta, phi = TP.cart2sph(x)
+    if r - Rm <= GITM_H_THRESHOLD
+        return gitm.Tn(TP.sph2cart(r, theta, phi))
+    end
+    return gitm.Tn(TP.sph2cart(Rm + GITM_H_THRESHOLD - 5.0, theta, phi))
 end
 
 function hot_oxygen_density(amps::AMPSAtmosphere, x)

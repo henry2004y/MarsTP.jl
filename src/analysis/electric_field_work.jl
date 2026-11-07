@@ -1,9 +1,9 @@
-struct FieldWorkInterpolators
-    total::Any
-    conv::Any
-    hall::Any
-    gradpe::Any
-    res::Any
+struct FieldWorkInterpolators{FT, FC, FH, FG, FR}
+    total::FT
+    conv::FC
+    hall::FH
+    gradpe::FG
+    res::FR
 end
 
 FieldWorkInterpolators(total, conv, hall) =
@@ -40,11 +40,41 @@ function _cartesian_velocity_to_spherical(v, p)
     return TP.cart2sphvec(v[1], v[2], v[3], p[1], p[2], p[3])
 end
 
-function _work_one(itp, p, v, q, dt)
-    E = itp(p)
+@inline function _work_one(itp, p, v, q, dt)
+    rp = norm(p)
+    query = (rp < Rinner && Rinner - rp < 1.0e-3) ? p * ((Rinner + 1.0e-6) / rp) :
+        (rp > Router && rp - Router < 1.0e-3) ? p * ((Router - 1.0e-6) / rp) : p
+    E = itp(query)
     all(isfinite, E) || error("Nonfinite electric field in work integral")
     # StructuredGrid vector interpolators already return Cartesian components.
     return q * dot(E, v) * dt
+end
+
+@inline function _is_strictly_monotonic(t)
+    n = length(t)
+    n <= 1 && return true
+    @inbounds dt1 = t[2] - t[1]
+    if dt1 > 0
+        @inbounds for i in 2:(n - 1)
+            t[i + 1] > t[i] || return false
+        end
+        return true
+    elseif dt1 < 0
+        @inbounds for i in 2:(n - 1)
+            t[i + 1] < t[i] || return false
+        end
+        return true
+    else
+        return false
+    end
+end
+
+@inline function _finite_state6(u)
+    return length(u) >= 6 &&
+        @inbounds(
+        isfinite(u[1]) && isfinite(u[2]) && isfinite(u[3]) &&
+            isfinite(u[4]) && isfinite(u[5]) && isfinite(u[6])
+    )
 end
 
 function _work_trajectory(sol)
@@ -65,10 +95,9 @@ function _work_trajectory(sol)
             traj = (; t = @view(traj.t[1:(end - 1)]), u = @view(traj.u[1:(end - 1)]))
         end
     end
-    dt = diff(traj.t)
-    (all(>(0), dt) || all(<(0), dt)) ||
+    _is_strictly_monotonic(traj.t) ||
         throw(ArgumentError("Trajectory times must be strictly monotonic"))
-    all(u -> length(u) >= 6 && all(isfinite, u[1:6]), traj.u) ||
+    all(_finite_state6, traj.u) ||
         throw(ArgumentError("States must contain finite Cartesian position and velocity"))
     return traj
 end
@@ -103,11 +132,15 @@ function field_work(sol, itp::FieldWorkInterpolators; species = "O2+")
         itp.gradpe !== nothing && (gradpe_J += _work_one(itp.gradpe, p, v, q, dt))
         itp.res !== nothing && (res_J += _work_one(itp.res, p, v, q, dt))
     end
-    base = (; total_J, conv_J, hall_J,
-        total_eV = total_J / TP.eV, conv_eV = conv_J / TP.eV, hall_eV = hall_J / TP.eV)
+    base = (;
+        total_J, conv_J, hall_J,
+        total_eV = total_J / TP.eV, conv_eV = conv_J / TP.eV, hall_eV = hall_J / TP.eV,
+    )
     has_ext || return base
-    return (; base..., gradpe_J, res_J,
-        gradpe_eV = gradpe_J / TP.eV, res_eV = res_J / TP.eV)
+    return (;
+        base..., gradpe_J, res_J,
+        gradpe_eV = gradpe_J / TP.eV, res_eV = res_J / TP.eV,
+    )
 end
 
 """
@@ -131,24 +164,25 @@ function Electric_field_work_profile(sol, itp::FieldWorkInterpolators; species =
     work = zeros(n, 5)
     power = zeros(n, 5)
     kinetic = zeros(n)
-    fields = (itp.total, itp.conv, itp.hall, itp.gradpe, itp.res)
-    for i in 1:n
+    @inbounds for i in 1:n
         u = traj.u[i]
         p, v = SA[u[1], u[2], u[3]], SA[u[4], u[5], u[6]]
         kinetic[i] = 0.5 * sp.m * dot(v, v) / TP.eV
-        for j in 1:5
-            fields[j] === nothing && continue
-            power[i, j] = _work_one(fields[j], p, v, sp.q, 1.0) / TP.eV
-        end
+        power[i, 1] = _work_one(itp.total, p, v, sp.q, 1.0) / TP.eV
+        power[i, 2] = _work_one(itp.conv, p, v, sp.q, 1.0) / TP.eV
+        power[i, 3] = _work_one(itp.hall, p, v, sp.q, 1.0) / TP.eV
+        itp.gradpe !== nothing && (power[i, 4] = _work_one(itp.gradpe, p, v, sp.q, 1.0) / TP.eV)
+        itp.res !== nothing && (power[i, 5] = _work_one(itp.res, p, v, sp.q, 1.0) / TP.eV)
         if i > 1
             a = traj.u[i - 1]
             pm = 0.5 * (p + SA[a[1], a[2], a[3]])
             vm = 0.5 * (v + SA[a[4], a[5], a[6]])
             dt = traj.t[i] - traj.t[i - 1]
-            for j in 1:5
-                fields[j] === nothing && continue
-                work[i, j] = work[i - 1, j] + _work_one(fields[j], pm, vm, sp.q, dt) / TP.eV
-            end
+            work[i, 1] = work[i - 1, 1] + _work_one(itp.total, pm, vm, sp.q, dt) / TP.eV
+            work[i, 2] = work[i - 1, 2] + _work_one(itp.conv, pm, vm, sp.q, dt) / TP.eV
+            work[i, 3] = work[i - 1, 3] + _work_one(itp.hall, pm, vm, sp.q, dt) / TP.eV
+            itp.gradpe !== nothing && (work[i, 4] = work[i - 1, 4] + _work_one(itp.gradpe, pm, vm, sp.q, dt) / TP.eV)
+            itp.res !== nothing && (work[i, 5] = work[i - 1, 5] + _work_one(itp.res, pm, vm, sp.q, dt) / TP.eV)
         end
     end
     total_eV, conv_eV, hall_eV, gradpe_eV, res_eV =
@@ -157,25 +191,33 @@ function Electric_field_work_profile(sol, itp::FieldWorkInterpolators; species =
     energy_residual_eV = delta_kinetic_eV .- total_eV
     field_sum_residual_eV = total_eV .- conv_eV .- hall_eV .- gradpe_eV .- res_eV
     if !has_ext
-        summary = (; total_eV = last(total_eV), conv_eV = last(conv_eV),
+        summary = (;
+            total_eV = last(total_eV), conv_eV = last(conv_eV),
             hall_eV = last(hall_eV), delta_kinetic_eV = last(delta_kinetic_eV),
             energy_residual_eV = last(energy_residual_eV),
-            field_sum_residual_eV = last(field_sum_residual_eV))
-        return (; t = collect(traj.t), total_eV, conv_eV, hall_eV,
+            field_sum_residual_eV = last(field_sum_residual_eV),
+        )
+        return (;
+            t = collect(traj.t), total_eV, conv_eV, hall_eV,
             power_total_eV_s = power[:, 1], power_conv_eV_s = power[:, 2],
             power_hall_eV_s = power[:, 3], kinetic_eV = kinetic, delta_kinetic_eV,
-            energy_residual_eV, field_sum_residual_eV, summary)
+            energy_residual_eV, field_sum_residual_eV, summary,
+        )
     end
-    summary = (; total_eV = last(total_eV), conv_eV = last(conv_eV),
+    summary = (;
+        total_eV = last(total_eV), conv_eV = last(conv_eV),
         hall_eV = last(hall_eV), gradpe_eV = last(gradpe_eV), res_eV = last(res_eV),
         delta_kinetic_eV = last(delta_kinetic_eV),
         energy_residual_eV = last(energy_residual_eV),
-        field_sum_residual_eV = last(field_sum_residual_eV))
-    return (; t = collect(traj.t), total_eV, conv_eV, hall_eV, gradpe_eV, res_eV,
+        field_sum_residual_eV = last(field_sum_residual_eV),
+    )
+    return (;
+        t = collect(traj.t), total_eV, conv_eV, hall_eV, gradpe_eV, res_eV,
         power_total_eV_s = power[:, 1], power_conv_eV_s = power[:, 2],
         power_hall_eV_s = power[:, 3], power_gradpe_eV_s = power[:, 4],
         power_res_eV_s = power[:, 5], kinetic_eV = kinetic, delta_kinetic_eV,
-        energy_residual_eV, field_sum_residual_eV, summary)
+        energy_residual_eV, field_sum_residual_eV, summary,
+    )
 end
 
 """
@@ -187,8 +229,10 @@ Returns results in input order, using `field_work` or, if `profiles=true`,
 `Electric_field_work_profile`. Build interpolators once and reuse them. Threaded mode
 requires thread-safe, read-only interpolators. No files are saved.
 """
-function particle_field_work(solutions, itp::FieldWorkInterpolators;
-        species = "O2+", profiles = false, threaded = false)
+function particle_field_work(
+        solutions, itp::FieldWorkInterpolators;
+        species = "O2+", profiles = false, threaded = false
+    )
     hasproperty(solutions, :t) &&
         throw(ArgumentError("Use field_work or Electric_field_work_profile for a single trajectory"))
     trajectories = solutions isa AbstractVector ? solutions : solutions.u
@@ -217,41 +261,67 @@ Midpoint signed work on supplied intervals, in eV. N states give N-1 increments.
 Use full integration cadence before thinning. Summary mode uses constant memory
 unless endpoint power is requested. Positive/negative sums depend on cadence.
 """
-function trajectory_work(sol,itp;species="O2+",mode=:steps,power=false)
-    mode in (:steps,:summary) || throw(ArgumentError("Invalid work mode"))
-    tr=_work_trajectory(sol);sp=TP.SpeciesDict[species];n=length(tr.t)
-    fields=(itp.total,itp.conv,itp.hall)
-    increments=mode==:steps ? zeros(n-1,3) : nothing
-    powers=power ? zeros(n,3) : nothing
-    totals=zeros(3);positive=zeros(3);negative=zeros(3)
-    kinetic(u)=sp.m*sum(abs2,u[4:6])/(2TP.eV)
-    k0=kinetic(first(tr.u));k1=kinetic(last(tr.u));maxresidual=0.
-    for i in 1:n
-        b=tr.u[i]
+function trajectory_work(sol, itp; species = "O2+", mode = :steps, power = false)
+    mode in (:steps, :summary) || throw(ArgumentError("Invalid work mode"))
+    tr = _work_trajectory(sol);sp = TP.SpeciesDict[species];n = length(tr.t)
+    has_gradpe = itp.gradpe !== nothing
+    ncols = has_gradpe ? 4 : 3
+    increments = mode == :steps ? zeros(n - 1, ncols) : nothing
+    powers = power ? zeros(n, ncols) : nothing
+    tot1 = 0.0;tot2 = 0.0;tot3 = 0.0;tot4 = 0.0
+    pos1 = 0.0;pos2 = 0.0;pos3 = 0.0;pos4 = 0.0
+    neg1 = 0.0;neg2 = 0.0;neg3 = 0.0;neg4 = 0.0
+    @inline kinetic(u) = @inbounds sp.m * (abs2(u[4]) + abs2(u[5]) + abs2(u[6])) / (2TP.eV)
+    k0 = kinetic(first(tr.u));k1 = kinetic(last(tr.u));maxresidual = 0.0
+    @inbounds for i in 1:n
+        b = tr.u[i]
         if power
-            for j in 1:3
-                powers[i,j]=_work_one(fields[j],SA[b[1],b[2],b[3]],SA[b[4],b[5],b[6]],sp.q,1.)/TP.eV
+            pb = SA[b[1], b[2], b[3]]
+            vb = SA[b[4], b[5], b[6]]
+            powers[i, 1] = _work_one(itp.total, pb, vb, sp.q, 1.0) / TP.eV
+            powers[i, 2] = _work_one(itp.conv, pb, vb, sp.q, 1.0) / TP.eV
+            powers[i, 3] = _work_one(itp.hall, pb, vb, sp.q, 1.0) / TP.eV
+            if has_gradpe
+                powers[i, 4] = _work_one(itp.gradpe, pb, vb, sp.q, 1.0) / TP.eV
             end
         end
-        i==1 && continue
-        a=tr.u[i-1]
-        pm=SA[(a[1]+b[1])/2,(a[2]+b[2])/2,(a[3]+b[3])/2]
-        vm=SA[(a[4]+b[4])/2,(a[5]+b[5])/2,(a[6]+b[6])/2]
-        for j in 1:3
-            dw=_work_one(fields[j],pm,vm,sp.q,tr.t[i]-tr.t[i-1])/TP.eV
-            isfinite(dw) || error("Nonfinite work")
-            totals[j]+=dw;positive[j]+=max(dw,0);negative[j]+=min(dw,0)
-            increments===nothing || (increments[i-1,j]=dw)
+        i == 1 && continue
+        a = tr.u[i - 1]
+        pm = SA[(a[1] + b[1]) / 2, (a[2] + b[2]) / 2, (a[3] + b[3]) / 2]
+        vm = SA[(a[4] + b[4]) / 2, (a[5] + b[5]) / 2, (a[6] + b[6]) / 2]
+        dt = tr.t[i] - tr.t[i - 1]
+        dw1 = _work_one(itp.total, pm, vm, sp.q, dt) / TP.eV
+        dw2 = _work_one(itp.conv, pm, vm, sp.q, dt) / TP.eV
+        dw3 = _work_one(itp.hall, pm, vm, sp.q, dt) / TP.eV
+        (isfinite(dw1) && isfinite(dw2) && isfinite(dw3)) || error("Nonfinite work")
+        tot1 += dw1;pos1 += max(dw1, 0.0);neg1 += min(dw1, 0.0)
+        tot2 += dw2;pos2 += max(dw2, 0.0);neg2 += min(dw2, 0.0)
+        tot3 += dw3;pos3 += max(dw3, 0.0);neg3 += min(dw3, 0.0)
+        if has_gradpe
+            dw4 = _work_one(itp.gradpe, pm, vm, sp.q, dt) / TP.eV
+            isfinite(dw4) || error("Nonfinite work")
+            tot4 += dw4;pos4 += max(dw4, 0.0);neg4 += min(dw4, 0.0)
         end
-        maxresidual=max(maxresidual,abs(kinetic(b)-k0-totals[1]))
+        if increments !== nothing
+            increments[i - 1, 1] = dw1
+            increments[i - 1, 2] = dw2
+            increments[i - 1, 3] = dw3
+            if has_gradpe
+                increments[i - 1, 4] = dw4
+            end
+        end
+        maxresidual = max(maxresidual, abs(kinetic(b) - k0 - tot1))
     end
-    summary=(;total_eV=totals[1],conv_eV=totals[2],hall_eV=totals[3],
-        positive_total_eV=positive[1],positive_conv_eV=positive[2],positive_hall_eV=positive[3],
-        negative_total_eV=negative[1],negative_conv_eV=negative[2],negative_hall_eV=negative[3],
-        initial_kinetic_eV=k0,final_kinetic_eV=k1,delta_kinetic_eV=k1-k0,
-        energy_residual_eV=k1-k0-totals[1],max_abs_energy_residual_eV=maxresidual,
-        field_sum_residual_eV=totals[1]-totals[2]-totals[3])
-    return (;summary,increments,powers)
+    base_summary = (;
+        total_eV = tot1, conv_eV = tot2, hall_eV = tot3,
+        positive_total_eV = pos1, positive_conv_eV = pos2, positive_hall_eV = pos3,
+        negative_total_eV = neg1, negative_conv_eV = neg2, negative_hall_eV = neg3,
+        initial_kinetic_eV = k0, final_kinetic_eV = k1, delta_kinetic_eV = k1 - k0,
+        energy_residual_eV = k1 - k0 - tot1, max_abs_energy_residual_eV = maxresidual,
+        field_sum_residual_eV = tot1 - tot2 - tot3 - tot4,
+    )
+    summary = has_gradpe ? merge(base_summary, (; gradpe_eV = tot4, positive_gradpe_eV = pos4, negative_gradpe_eV = neg4)) : base_summary
+    return (; summary, increments, powers)
 end
 
 """
