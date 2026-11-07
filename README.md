@@ -165,7 +165,7 @@ each record carries its original particle ID.
   - `sphere_trajectories.jl`, `plot_sphere_trajectories.jl`, `plot_trajectories_xz_yz.jl`: 800 km spherical shell release trajectories in XZ/YZ planes.
   - `hemisphere_work.jl`, `plot_hemisphere_work.jl`: Dayside and nightside convective, Hall, and total work maps.
   - `monte_carlo_shell.jl`, `analyze_monte_carlo.jl`, `maxwellian_source.jl`: Weighted Maxwellian shell Monte Carlo tracing and analysis.
-  - `monte_carlo_forward_tracing/`: Full shell Monte Carlo suite (`monte_carlo_shell.jl`, `analyze_paper_results.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
+  - `monte_carlo_forward_tracing/`: Full shell Monte Carlo suite (`monte_carlo_shell.jl`, `run_incremental_chunks.jl`, `analyze_paper_results.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
 - **Backward Tracing (`examples/backward_tracing/`)**:
   - `random_probe_backtrace.jl`, `plot_probe_backtrace.jl`: Random-velocity backtrace trajectories from `(0, 0, 2 Rm)`.
   - `probe_vdf_integrated.jl`, `plot_probe_vdf.jl`, `check_probe_vdf_grid.jl`: Velocity-integrated backtraced VDFs.
@@ -271,9 +271,17 @@ In `examples/forward_tracing/monte_carlo_forward_tracing/monte_carlo_shell.jl`, 
   Subsamples saved trajectory points by `save_stride` (always retaining the exact initial and terminal boundary states) after full-cadence tracing.
 - **`fields_path::String = ""` & `include_gradpe_work::Bool = false`**:
   Selects a custom `.vts` field file (e.g., `data/mars_fields_with_crustal.vts` or `data/mars_fields_without_crustal.vts`) and enables 4-component Ohm's-law work tracking (`total`, `conv`, `hall`, `gradpe`).
+- **`chunk_id::Int = 1` (Incremental Multi-Chunk Accumulation)**:
+  Assigns a strictly disjoint per-cell RNG stream (`seed + (chunk_id - 1) * seed_stride + cellid`) and non-overlapping global particle IDs (`(chunk_id - 1) * N_chunk + 1 .. chunk_id * N_chunk`) to each chunk. Passing a vector of chunk directories `["outputs/mc_chunk_01", "outputs/mc_chunk_02", ...]` to `foreach_saved_trajectory`, `forward_psd_saved`, `load_trajectories`, or `run_paper_analysis` validates that all `(seed, chunk_id)` pairs are distinct and automatically scales single-chunk rate weights by `1 / K`.
 
-To reproduce the paper's virtual spacecraft and cumulative work figures (`Figures 3–7`) from a saved run directory:
+To run incremental chunks locally and monitor chunk-to-chunk statistical convergence (`*_convergence.toml` and `*_convergence.png`):
 
 ```sh
-julia --threads=8 --project=. examples/forward_tracing/monte_carlo_forward_tracing/analyze_paper_results.jl outputs/mc_400km_crustal_1M outputs/mc_400km_crustal_1M_paper
+julia --threads=8 --project=. examples/forward_tracing/monte_carlo_forward_tracing/run_incremental_chunks.jl outputs/mc_400km_crustal 3 100
+```
+
+To reproduce the paper's virtual spacecraft and cumulative work figures (`Figures 3–7`) from one or more saved chunk directories:
+
+```sh
+julia --threads=8 --project=. examples/forward_tracing/monte_carlo_forward_tracing/analyze_paper_results.jl outputs/mc_400km_crustal_chunk_01 outputs/mc_400km_crustal_chunk_02 outputs/mc_400km_crustal_cum_02_paper
 ```

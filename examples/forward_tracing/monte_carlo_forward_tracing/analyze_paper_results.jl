@@ -225,10 +225,12 @@ function finalize_transect(acc::TransectAccumulators)
     )
 end
 
-function run_paper_analysis(run_dir::AbstractString, out_dir::AbstractString)
+function run_paper_analysis(run_source::Union{AbstractString, AbstractVector{<:AbstractString}}, out_dir::AbstractString)
     ispath(out_dir) && rm(out_dir; recursive = true, force = true)
     mkpath(out_dir)
-    meta = TOML.parsefile(joinpath(run_dir, "metadata.toml"))
+    run_dirs = run_source isa AbstractString ? [String(run_source)] : collect(String, run_source)
+    first_dir = first(run_dirs)
+    meta = TOML.parsefile(joinpath(first_dir, "metadata.toml"))
     rm_m = Float64(meta["Rm_m"])
     fields_path = isfile(meta["source_file"]) ? meta["source_file"] : MarsTP.project_path("data", "mars_fields_with_crustal.vts")
     fields = load_mhd_fields(fields_path)
@@ -282,10 +284,10 @@ function run_paper_analysis(run_dir::AbstractString, out_dir::AbstractString)
     tail_side = 0.2 * rm_m
     tail_acc = TransectAccumulators(tail_centers, tail_side, energy_edges)
 
-    println("Streaming saved trajectories from $run_dir ...")
+    println("Streaming saved trajectories from $(length(run_dirs)) run director$(length(run_dirs) == 1 ? "y" : "ies") ...")
     t_start = time()
     foreach_saved_trajectory(
-        run_dir; species = "O2+", include_work = true, progress = p -> begin
+        length(run_dirs) == 1 ? first_dir : run_dirs; species = "O2+", include_work = true, progress = p -> begin
             if p.batch % 50 == 0
                 println("  batch $(p.batch)/$(p.batches), $(p.particles) trajectories ($(round(time() - t_start; digits = 1)) s)")
                 flush(stdout)
@@ -596,7 +598,12 @@ function _plot_representative_ions(run_dir, work_itp, rm_m, orbit_angles_deg, or
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    run_dir = length(ARGS) >= 1 ? ARGS[1] : "outputs/mc_400km_crustal_1M"
-    out_dir = length(ARGS) >= 2 ? ARGS[2] : "$(run_dir)_paper"
-    run_paper_analysis(run_dir, out_dir)
+    if length(ARGS) <= 2
+        run_dir = length(ARGS) >= 1 ? ARGS[1] : "outputs/mc_400km_crustal_1M"
+        out_dir = length(ARGS) >= 2 ? ARGS[2] : "$(run_dir)_paper"
+        run_paper_analysis(run_dir, out_dir)
+    else
+        # Multiple chunk directories followed by output directory as last argument
+        run_paper_analysis(ARGS[1:(end - 1)], ARGS[end])
+    end
 end

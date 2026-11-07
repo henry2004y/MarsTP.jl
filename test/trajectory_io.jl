@@ -143,4 +143,26 @@ end
     loaded = load_trajectories(packed_path; species = "O2+", max_points = 10)
     @test length(loaded) == 1
     @test loaded[1]["times_s"] ≈ tr.t
+
+    c1 = joinpath(folder, "chunk1"); c2 = joinpath(folder, "chunk2")
+    mkpath(c1); mkpath(c2)
+    write_trajectory_batch(joinpath(c1, "trajectories_00001.jld2"), [tr]; particle_ids = [1], rate_weights_s = [4.0], packed = true, state_eltype = Float32)
+    write_trajectory_batch(joinpath(c2, "trajectories_00001.jld2"), [tr]; particle_ids = [101], rate_weights_s = [6.0], packed = true, state_eltype = Float32)
+    open(joinpath(c1, "metadata.toml"), "w") do io
+        TOML.print(io, Dict("n_particles" => 1, "species" => "O2+", "seed" => 20260906, "chunk_id" => 1))
+    end
+    open(joinpath(c2, "metadata.toml"), "w") do io
+        TOML.print(io, Dict("n_particles" => 1, "species" => "O2+", "seed" => 20260906, "chunk_id" => 2))
+    end
+    open(joinpath(c1, "completion.toml"), "w") do io
+        TOML.print(io, Dict("complete" => true, "n_saved_trajectories" => 1))
+    end
+    open(joinpath(c2, "completion.toml"), "w") do io
+        TOML.print(io, Dict("complete" => true, "n_saved_trajectories" => 1))
+    end
+    pooled = []
+    foreach_saved_trajectory(x -> push!(pooled, x), [c1, c2])
+    @test length(pooled) == 2
+    @test [r.rate_weight_s for r in pooled] ≈ [2.0, 3.0]
+    @test_throws ArgumentError foreach_saved_trajectory(_ -> nothing, [c1, c1])
 end

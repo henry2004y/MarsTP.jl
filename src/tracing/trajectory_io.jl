@@ -280,9 +280,10 @@ file lists support partial-run inspection; completeness is then per new batch.
 Legacy individual files have no completion marker, reported as legacy format.
 The callback must consume the state immediately to keep memory bounded.
 """
-function foreach_saved_trajectory(callback, source; species = "O2+", progress = nothing, include_work::Bool = true)
+function foreach_saved_trajectory(callback, source; species = "O2+", progress = nothing, include_work::Bool = true, scale_multi_run_weights::Bool = true)
     haskey(TP.SpeciesDict, species) || throw(ArgumentError("Unknown species"))
     expected = nothing
+    weight_scale = 1.0
     if source isa AbstractString && isdir(source)
         completion = TOML.parsefile(joinpath(source, "completion.toml"))
         get(completion, "complete", false) === true || throw(ArgumentError("Incomplete trajectory run"))
@@ -290,6 +291,25 @@ function foreach_saved_trajectory(callback, source; species = "O2+", progress = 
         meta["species"] == species || throw(ArgumentError("Saved species mismatch"))
         expected = Int(get(completion, "n_saved_trajectories", get(meta, "n_saved_trajectories", meta["n_particles"])))
         files = sort(filter(p -> occursin(r"^trajectories_\d+\.jld2$", basename(p)), readdir(source; join = true)))
+    elseif !(source isa AbstractString) && !isempty(source) && all(p -> p isa AbstractString && isdir(p), source)
+        dirs = collect(String, source)
+        expected = 0
+        files = String[]
+        seen_chunks = Set{Tuple{Int, Int}}()
+        for d in dirs
+            completion = TOML.parsefile(joinpath(d, "completion.toml"))
+            get(completion, "complete", false) === true || throw(ArgumentError("Incomplete trajectory run: $d"))
+            meta = TOML.parsefile(joinpath(d, "metadata.toml"))
+            meta["species"] == species || throw(ArgumentError("Saved species mismatch in $d"))
+            chunk_key = (Int(get(meta, "seed", 0)), Int(get(meta, "chunk_id", 1)))
+            chunk_key in seen_chunks && throw(ArgumentError("Duplicate (seed, chunk_id)=$chunk_key across incremental run directories"))
+            push!(seen_chunks, chunk_key)
+            expected += Int(get(completion, "n_saved_trajectories", get(meta, "n_saved_trajectories", meta["n_particles"])))
+            append!(files, sort(filter(p -> occursin(r"^trajectories_\d+\.jld2$", basename(p)), readdir(d; join = true))))
+        end
+        if scale_multi_run_weights && length(dirs) > 1
+            weight_scale = 1.0 / length(dirs)
+        end
     else
         files = source isa AbstractString ? [source] : collect(source)
     end
@@ -387,8 +407,8 @@ function foreach_saved_trajectory(callback, source; species = "O2+", progress = 
                     end
                     callback(
                         (;
-                            particle_id = pid, rate_weight_s = rate, trajectory,
-                            source_density_weight_m3 = dens_weights === nothing ? nothing : Float64(dens_weights[i]),
+                            particle_id = pid, rate_weight_s = rate * weight_scale, trajectory,
+                            source_density_weight_m3 = dens_weights === nothing ? nothing : Float64(dens_weights[i]) * weight_scale,
                             cell_id = cids === nothing ? nothing : Int(cids[i]),
                             termination_code = code, work, legacy_format = false,
                         )
@@ -437,8 +457,8 @@ function foreach_saved_trajectory(callback, source; species = "O2+", progress = 
                     end
                     callback(
                         (;
-                            particle_id = Int(pid), rate_weight_s = rate, trajectory,
-                            source_density_weight_m3 = haskey(file, "$prefix/source_density_weight_m3") ? file["$prefix/source_density_weight_m3"] : nothing,
+                            particle_id = Int(pid), rate_weight_s = rate * weight_scale, trajectory,
+                            source_density_weight_m3 = haskey(file, "$prefix/source_density_weight_m3") ? Float64(file["$prefix/source_density_weight_m3"]) * weight_scale : nothing,
                             cell_id = haskey(file, "$prefix/cell_id") ? file["$prefix/cell_id"] : nothing,
                             termination_code = code, work, legacy_format = !modern,
                         )

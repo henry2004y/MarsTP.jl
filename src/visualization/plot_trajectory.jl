@@ -82,27 +82,30 @@ function load_trajectories(
     if count < 1 || max_points < 2 || !isfinite(rm_m) || rm_m <= 0
         throw(ArgumentError("count >= 1, max_points >= 2, rm_m > 0 required"))
     end
-    src_path = String(source)
+    src_list = source isa AbstractString ? [String(source)] : [String(s) for s in source]
     wanted = if particle_ids !== nothing
         Set{Int}(Int.(particle_ids))
-    elseif isdir(src_path) && isfile(joinpath(src_path, "plot_sample_ids.toml"))
-        Set{Int}(Int.(TOML.parsefile(joinpath(src_path, "plot_sample_ids.toml"))["particle_ids"]))
+    elseif !isempty(src_list) && all(d -> isdir(d) && isfile(joinpath(d, "plot_sample_ids.toml")), src_list)
+        ids_union = Set{Int}()
+        for d in src_list
+            union!(ids_union, Int.(TOML.parsefile(joinpath(d, "plot_sample_ids.toml"))["particle_ids"]))
+        end
+        ids_union
     else
         nothing
     end
-    files = if isdir(src_path)
-        jld_files = sort(filter(p -> occursin(r"^trajectories_.*\.jld2$", basename(p)), readdir(src_path; join = true)))
-        if !isempty(jld_files)
-            jld_files
-        elseif isfile(joinpath(src_path, "trajectories.jsonl"))
-            [joinpath(src_path, "trajectories.jsonl")]
-        else
-            String[]
+    files = String[]
+    for src_path in src_list
+        if isdir(src_path)
+            jld_files = sort(filter(p -> occursin(r"^trajectories_.*\.jld2$", basename(p)), readdir(src_path; join = true)))
+            if !isempty(jld_files)
+                append!(files, jld_files)
+            elseif isfile(joinpath(src_path, "trajectories.jsonl"))
+                push!(files, joinpath(src_path, "trajectories.jsonl"))
+            end
+        elseif isfile(src_path)
+            push!(files, src_path)
         end
-    elseif isfile(src_path)
-        [src_path]
-    else
-        String[]
     end
     isempty(files) && throw(ArgumentError("No trajectory files found (PSD-only files contain no paths)"))
 

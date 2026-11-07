@@ -34,6 +34,7 @@ module ShellMonteCarlo
         packed_trajectories::Bool = true
         trajectory_float32::Bool = true
         skip_inner_and_trapped::Bool = false
+        chunk_id::Int = 1
     end
 
     @inline function _hits_paper_roi(tr)
@@ -330,10 +331,14 @@ module ShellMonteCarlo
 
     function release_particles(fields, source, c)
         c.flux_model in ("n_bulk_speed_maxwellian", "n_speed_outward_maxwellian", "reservoir_maxwellian_rate") || error("Unsupported flux model")
+        c.chunk_id >= 1 || error("chunk_id must be >= 1")
         radius = source.radius
         particles = NamedTuple[]
         cells = NamedTuple[]
         mass = TP.SpeciesDict["O2+"].m
+        n_cells_grid = (length(fields.theta) - 1) * (length(fields.phi) - 1)
+        id_offset = (c.chunk_id - 1) * n_cells_grid * c.per_cell
+        seed_stride = max(100_000, n_cells_grid + 1)
         cellid = 0
         for j in 1:(length(fields.theta) - 1), k in 1:(length(fields.phi) - 1)
             cellid += 1
@@ -353,7 +358,7 @@ module ShellMonteCarlo
             if c.flux_model in ("n_bulk_speed_maxwellian", "reservoir_maxwellian_rate")
                 # Follow maxwellian_source.jl: one midpoint patch, N UNTRUNCATED draws.
                 # Bulk-speed rates retain both velocity signs; reservoir is an explicit legacy mode.
-                rng = Xoshiro(c.seed + cellid)
+                rng = Xoshiro(c.seed + (c.chunk_id - 1) * seed_stride + cellid)
                 sampled = sample_maxwellian_source(
                     c.per_cell; position_m = radius * er,
                     bulk_velocity_m_s = m.Ui, temperature_ev = TP.kB * m.Ti / 1.602176634e-19,
@@ -367,7 +372,7 @@ module ShellMonteCarlo
                 for q in 1:c.per_cell
                     state = sampled.initial_states[q]
                     x = Vec(state[1:3]);v = Vec(state[4:6])
-                    id = (cellid - 1) * c.per_cell + q
+                    id = id_offset + (cellid - 1) * c.per_cell + q
                     W = m.n > 0 ? sampled.rate_weights_s[q] : 0.0
                     density_weight = m.n > 0 ? sampled.density_weights_m3[q] : 0.0
                     logw = log(sampled.importance_weights[q])
@@ -378,7 +383,7 @@ module ShellMonteCarlo
             local_samples = NamedTuple[]
             sigma = sqrt(TP.kB * m.Ti / mass)
             for q in 1:c.per_cell
-                id = (cellid - 1) * c.per_cell + q
+                id = id_offset + (cellid - 1) * c.per_cell + q
                 rng = Xoshiro(c.seed + id) # independent of thread scheduling / batches
                 mu = cos(th1) + rand(rng) * (cos(th0) - cos(th1))
                 ph = ph0 + rand(rng) * (ph1 - ph0)
@@ -400,13 +405,13 @@ module ShellMonteCarlo
 
     """Run the 500 km shell experiment in bounded batches and save synchronized SI states."""
     function run_monte_carlo(out, c = Config())
-        c.dt > 0 && c.tmax > 0 && c.per_cell > 0 && c.cell_stride > 0 || error("Invalid configuration")
+        c.dt > 0 && c.tmax > 0 && c.per_cell > 0 && c.cell_stride > 0 && c.chunk_id >= 1 || error("Invalid configuration")
         0 <= c.absorption_altitude_km < c.altitude_km || error("Absorption altitude must be below source altitude")
         c.batch_size > 0 || error("batch_size must be positive")
         c.tracing_backend in (:cpu, :cuda, :kernel_cpu) || error("Unknown tracing backend")
         c.tracing_backend != :cuda || CUDA.functional() || error("CUDA backend requested but unavailable")
         isapprox(c.tmax / c.dt, round(c.tmax / c.dt); atol = 1.0e-8) || error("tmax must be a multiple of dt")
-        c.save_trajectories in (:all, :roi_and_sample, :probes_only, :none) || error("Invalid save_trajectories mode")
+        c.save_trajectories in (:all, :outer_only, :roi_and_sample, :probes_only, :none) || error("Invalid save_trajectories mode")
         c.save_stride >= 1 || error("save_stride must be >= 1")
         ispath(out) && error("Output exists; choose a new run directory: $out")
         mkpath(out)
@@ -471,13 +476,15 @@ module ShellMonteCarlo
         meta["save_stride"] = c.save_stride
         meta["packed_trajectories"] = c.packed_trajectories
         meta["trajectory_eltype"] = c.trajectory_float32 ? "Float32" : "Float64"
+        meta["skip_inner_and_trapped"] = c.skip_inner_and_trapped
+        meta["chunk_id"] = c.chunk_id
         meta["include_gradpe_work"] = c.include_gradpe_work
         meta["n_positive_rate_particles"] = count(p -> p.W > 0, particles)
         sample_candidate_ids = Set{Int}()
         saved_sample_ids = Int[]
         if c.save_trajectories == :roi_and_sample
             pos_ids = [p.id for p in particles if p.W > 0]
-            rng_sample = MersenneTwister(c.seed)
+            rng_sample = MersenneTwister(c.seed + c.chunk_id - 1)
             shuffle!(rng_sample, pos_ids)
             for pid in Iterators.take(pos_ids, min(5 * c.trajectory_sample_size, length(pos_ids)))
                 push!(sample_candidate_ids, pid)
