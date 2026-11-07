@@ -12,7 +12,7 @@ include("monte_carlo_shell.jl")
 include("analyze_paper_results.jl")
 
 using .ShellMonteCarlo
-using MarsTP, JLD2, TOML, Printf, Statistics, LinearAlgebra, PyPlot
+using MarsTP, JLD2, TOML, Printf, Statistics, LinearAlgebra, Random, PyPlot
 
 function _rel_l2_diff(a::AbstractArray, b::AbstractArray; min_val::Float64 = 0.0)
     num = 0.0
