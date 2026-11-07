@@ -174,8 +174,8 @@ each record carries its original particle ID.
 
 ## Perlmutter
 
-Use `scripts/perlmutter/run_backtrace_vdf.slurm` as the starting point. Copy or
-generate the MHD `.vts` file into `data/` on Perlmutter before submitting.
+- **Forward Tracing & Incremental Multi-Chunk Paper Workflow**: See [`examples/forward_tracing/perlmutter/README.md`](examples/forward_tracing/perlmutter/README.md) for the complete Perlmutter setup script (`setup_perlmutter.sh`), Slurm job-array scripts (`submit_mc_cpu.slurm`, `submit_mc_gpu.slurm`, `submit_analyze.slurm`), and chunk runners (`run_perlmutter_chunk.jl`, `analyze_perlmutter_chunks.jl`).
+- **Backward Tracing VDF**: Use `scripts/perlmutter/run_backtrace_vdf.slurm` as the starting point. Copy or generate the MHD `.vts` file into `data/` on Perlmutter before submitting.
 
 ## MHD ionosphere thin-sheet source in backtracing
 
