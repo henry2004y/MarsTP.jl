@@ -271,8 +271,11 @@ In `examples/forward_tracing/monte_carlo_forward_tracing/monte_carlo_shell.jl`, 
   Subsamples saved trajectory points by `save_stride` (always retaining the exact initial and terminal boundary states) after full-cadence tracing.
 - **`fields_path::String = ""` & `include_gradpe_work::Bool = false`**:
   Selects a custom `.vts` field file (e.g., `data/mars_fields_with_crustal.vts` or `data/mars_fields_without_crustal.vts`) and enables 4-component Ohm's-law work tracking (`total`, `conv`, `hall`, `gradpe`).
-- **`chunk_id::Int = 1` (Incremental Multi-Chunk Accumulation)**:
-  Assigns a strictly disjoint per-cell RNG stream (`seed + (chunk_id - 1) * seed_stride + cellid`) and non-overlapping global particle IDs (`(chunk_id - 1) * N_chunk + 1 .. chunk_id * N_chunk`) to each chunk. Passing a vector of chunk directories `["outputs/mc_chunk_01", "outputs/mc_chunk_02", ...]` to `foreach_saved_trajectory`, `forward_psd_saved`, `load_trajectories`, or `run_paper_analysis` validates that all `(seed, chunk_id)` pairs are distinct and automatically scales single-chunk rate weights by `1 / K`.
+- **`chunk_id::Int = 1` & `random_seed::Bool = false` (Cryptographic Stream Seeding & Incremental Accumulation)**:
+  - Every `(seed, chunk_id, cellid, particle_subid)` tuple is hashed with **SHA-256** (`_stream_rng`) to initialize all 256 bits of `Xoshiro(w1, w2, w3, w4)`, eliminating additive seed correlations (`seed + cellid` or `seed + id`) between neighboring cells, particles, or chunks.
+  - For small validation and regression runs, `random_seed = false` (default `seed = 20260906`) provides deterministic, reproducible streams.
+  - For production and incremental runs (`random_seed = true` or `seed <= 0`, used by default in `run_incremental_chunks.jl`), each chunk draws a fresh 63-bit hardware-entropy seed from `Random.RandomDevice()`, verifies it has not been used by any previous chunk, and records the drawn `seed` and `seed_mode = "random_device_sha256"` in `metadata.toml` so individual chunks remain auditable and replayable.
+  - Passing a vector of chunk directories `["outputs/mc_chunk_01", "outputs/mc_chunk_02", ...]` to `foreach_saved_trajectory`, `forward_psd_saved`, `load_trajectories`, or `run_paper_analysis` validates that all `(seed, chunk_id)` pairs are distinct and automatically scales single-chunk rate weights by `1 / K`.
 
 To run incremental chunks locally and monitor chunk-to-chunk statistical convergence (`*_convergence.toml` and `*_convergence.png`):
 

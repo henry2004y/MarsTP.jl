@@ -93,10 +93,13 @@ function run_incremental_chunks(
         skip_inner_and_trapped::Bool = true,
         fields_path::String = MarsTP.data_path("mars_fields_with_crustal.vts"),
         rel_tol::Float64 = 0.0,
+        random_seed::Bool = true,
+        base_seed::Int = 20260906,
     )
     chunk_dirs = String[]
     paper_dirs = String[]
     history = Dict{String, Any}[]
+    used_seeds = Set{Int}()
     cum_particles = 0
 
     for k in 1:n_chunks
@@ -104,14 +107,30 @@ function run_incremental_chunks(
         pdir = @sprintf("%s_cum_%02d_paper", base_prefix, k)
         comp_path = joinpath(cdir, "completion.toml")
         if isfile(comp_path) && get(TOML.parsefile(comp_path), "complete", false) === true
-            println("=== Chunk $k/$n_chunks already complete at $cdir; reusing ===")
+            existing_meta = TOML.parsefile(joinpath(cdir, "metadata.toml"))
+            s_exist = Int(get(existing_meta, "seed", 0))
+            s_exist in used_seeds && error("Duplicate seed $s_exist detected in existing chunk $cdir")
+            push!(used_seeds, s_exist)
+            println("=== Chunk $k/$n_chunks already complete at $cdir (seed=$s_exist); reusing ===")
         else
             ispath(cdir) && rm(cdir; recursive = true, force = true)
+            chunk_seed = if random_seed
+                s = 0
+                while s <= 0 || (s in used_seeds)
+                    s = Int(rand(Random.RandomDevice(), UInt64) & 0x7fffffffffffffff)
+                end
+                s
+            else
+                base_seed
+            end
+            push!(used_seeds, chunk_seed)
             cfg = ShellMonteCarlo.Config(;
                 altitude_km,
                 absorption_altitude_km = 200.0,
                 cell_stride,
                 per_cell,
+                seed = chunk_seed,
+                random_seed = false,
                 tmax,
                 dt,
                 batch_size = 2048,
@@ -125,7 +144,7 @@ function run_incremental_chunks(
                 skip_inner_and_trapped,
                 chunk_id = k,
             )
-            println("=== Running Chunk $k/$n_chunks -> $cdir (chunk_id=$k, per_cell=$per_cell, cell_stride=$cell_stride) ===")
+            println("=== Running Chunk $k/$n_chunks -> $cdir (seed=$chunk_seed, chunk_id=$k, per_cell=$per_cell, cell_stride=$cell_stride) ===")
             ShellMonteCarlo.run_monte_carlo(cdir, cfg)
         end
         push!(chunk_dirs, cdir)

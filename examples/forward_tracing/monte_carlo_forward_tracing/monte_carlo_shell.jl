@@ -35,6 +35,27 @@ module ShellMonteCarlo
         trajectory_float32::Bool = true
         skip_inner_and_trapped::Bool = false
         chunk_id::Int = 1
+        random_seed::Bool = false
+    end
+
+    @inline function _resolve_run_seed(c::Config)
+        if c.random_seed || c.seed <= 0
+            s = Int(rand(RandomDevice(), UInt64) & 0x7fffffffffffffff)
+            return s == 0 ? 1 : s
+        end
+        return Int(c.seed)
+    end
+
+    @inline function _stream_rng(seed::Integer, chunk_id::Integer, stream_a::Integer, stream_b::Integer = 0)
+        buf = UInt64[
+            reinterpret(UInt64, Int64(seed)),
+            reinterpret(UInt64, Int64(chunk_id)),
+            reinterpret(UInt64, Int64(stream_a)),
+            reinterpret(UInt64, Int64(stream_b)),
+        ]
+        digest = sha256(reinterpret(UInt8, buf))
+        w = reinterpret(UInt64, digest)
+        return Xoshiro(w[1], w[2], w[3], w[4])
     end
 
     @inline function _hits_paper_roi(tr)
@@ -329,7 +350,7 @@ module ShellMonteCarlo
         return actual, source, meta
     end
 
-    function release_particles(fields, source, c)
+    function release_particles(fields, source, c, actual_seed::Integer = _resolve_run_seed(c))
         c.flux_model in ("n_bulk_speed_maxwellian", "n_speed_outward_maxwellian", "reservoir_maxwellian_rate") || error("Unsupported flux model")
         c.chunk_id >= 1 || error("chunk_id must be >= 1")
         radius = source.radius
@@ -338,7 +359,6 @@ module ShellMonteCarlo
         mass = TP.SpeciesDict["O2+"].m
         n_cells_grid = (length(fields.theta) - 1) * (length(fields.phi) - 1)
         id_offset = (c.chunk_id - 1) * n_cells_grid * c.per_cell
-        seed_stride = max(100_000, n_cells_grid + 1)
         cellid = 0
         for j in 1:(length(fields.theta) - 1), k in 1:(length(fields.phi) - 1)
             cellid += 1
@@ -358,7 +378,7 @@ module ShellMonteCarlo
             if c.flux_model in ("n_bulk_speed_maxwellian", "reservoir_maxwellian_rate")
                 # Follow maxwellian_source.jl: one midpoint patch, N UNTRUNCATED draws.
                 # Bulk-speed rates retain both velocity signs; reservoir is an explicit legacy mode.
-                rng = Xoshiro(c.seed + (c.chunk_id - 1) * seed_stride + cellid)
+                rng = _stream_rng(actual_seed, c.chunk_id, cellid, 0)
                 sampled = sample_maxwellian_source(
                     c.per_cell; position_m = radius * er,
                     bulk_velocity_m_s = m.Ui, temperature_ev = TP.kB * m.Ti / 1.602176634e-19,
@@ -384,7 +404,7 @@ module ShellMonteCarlo
             sigma = sqrt(TP.kB * m.Ti / mass)
             for q in 1:c.per_cell
                 id = id_offset + (cellid - 1) * c.per_cell + q
-                rng = Xoshiro(c.seed + id) # independent of thread scheduling / batches
+                rng = _stream_rng(actual_seed, c.chunk_id, cellid, q) # cryptographically independent of thread scheduling / batches
                 mu = cos(th1) + rand(rng) * (cos(th0) - cos(th1))
                 ph = ph0 + rand(rng) * (ph1 - ph0)
                 er = Vec(sqrt(1 - mu^2) * cos(ph), sqrt(1 - mu^2) * sin(ph), mu)
@@ -429,7 +449,8 @@ module ShellMonteCarlo
             c.include_gradpe_work ? component(:gradpe) : nothing,
             nothing,
         )
-        particles, cells = release_particles(fields, source, c)
+        actual_seed = _resolve_run_seed(c)
+        particles, cells = release_particles(fields, source, c, actual_seed)
         if c.flux_model != "n_bulk_speed_maxwellian"
             all(p -> p.W == 0 || dot(p.v, p.x) > 0, particles) || error("Positive-rate non-outward release")
         end
@@ -442,7 +463,8 @@ module ShellMonteCarlo
             "inner_altitude_km" => c.absorption_altitude_km, "source_altitude_km" => c.altitude_km,
             "outer_radius_Rm" => Router / Rm, "detector_Rm" => collect(c.detector / Rm),
             "cube_side_Rm" => c.side / Rm, "cube_volume_m3" => c.side^3, "cube_face_area_m2" => c.side^2,
-            "dt_s" => c.dt, "max_flight_time_s" => c.tmax, "per_cell" => c.per_cell, "seed" => c.seed,
+            "dt_s" => c.dt, "max_flight_time_s" => c.tmax, "per_cell" => c.per_cell, "seed" => actual_seed,
+            "seed_mode" => (c.random_seed || c.seed <= 0) ? "random_device_sha256" : "deterministic_sha256",
             "cell_stride" => c.cell_stride, "n_particles" => length(particles), "n_cells" => length(cells),
             "flux_model" => c.flux_model, "source_total_rate_s1" => totalrate, "sampled_area_m2" => area,
             "volume_production" => false, "electric_field" => "static total E from VTS",
@@ -484,7 +506,7 @@ module ShellMonteCarlo
         saved_sample_ids = Int[]
         if c.save_trajectories == :roi_and_sample
             pos_ids = [p.id for p in particles if p.W > 0]
-            rng_sample = MersenneTwister(c.seed + c.chunk_id - 1)
+            rng_sample = _stream_rng(actual_seed, c.chunk_id, 0, -1)
             shuffle!(rng_sample, pos_ids)
             for pid in Iterators.take(pos_ids, min(5 * c.trajectory_sample_size, length(pos_ids)))
                 push!(sample_candidate_ids, pid)
