@@ -58,7 +58,7 @@ end
     sp=MarsTP.TP.SpeciesDict["O2+"]
     zero_field=(x,t)->SA[0.,0.,0.]
     p=first(filter(p->dot(p.x,p.v)<0,particles))
-    r=MC.trace_particle(p.x,p.v,(sp.q/sp.m,sp.m,zero_field,zero_field,nothing),MC.Config(tmax=1.))
+    r=MC.trace_particle(p.x,p.v,MarsTP.TP.prepare(;E=zero_field,B=zero_field,species=sp),MC.Config(tmax=1.))
     @test r.status=="time_limit" && r.time≈1.
     @test norm(r.x)<norm(p.x)
 end
@@ -103,7 +103,7 @@ end
     TP=MarsTP.TP
     species=TP.SpeciesDict["O2+"]
     E=(x,t)->SA[0.,0.,0.];B=(x,t)->SA[0.,0.,0.]
-    p=(species.q/species.m,species.m,E,B,nothing)
+    p=TP.prepare(;E,B,species)
     x=SA[Rm+500e3,0.,0.];v=SA[1e4,0.,0.]
     c=MC.Config(tmax=1.,detector=x+SA[5000.,0.,0.],side=2000.)
     r=MC.trace_particle(x,v,p,c)
@@ -114,7 +114,7 @@ end
     @test r.residual==0
     # A positively charged ion initially along +x rotates toward -y in +Bz.
     B=(x,t)->SA[0.,0.,1e-8]
-    p=(species.q/species.m,species.m,E,B,nothing)
+    p=TP.prepare(;E,B,species)
     r=MC.trace_particle(x,v,p,c)
     @test r.v[2]<0
     @test norm(r.v)≈norm(v) rtol=1e-12
@@ -125,7 +125,7 @@ end
     @test r.status=="inner"
     @test norm(r.x)≈Rm+200e3 atol=1e-7
     zero_field=(x,t)->SA[0.,0.,0.]
-    param=(species.q/species.m,species.m,zero_field,zero_field,nothing)
+    param=TP.prepare(;E=zero_field,B=zero_field,species)
     inward=MC.trace_particle(x,SA[-1000.,0.,0.],param,MC.Config(dt=1.,tmax=301.))
     @test inward.status=="inner"
     @test inward.time≈300. atol=1e-9
@@ -136,7 +136,7 @@ end
 @testset "Monte Carlo work matches saved interval diagnostics" begin
     sp=MarsTP.TP.SpeciesDict["O2+"]
     E=SA[1e-5,0.,0.]
-    param=(sp.q/sp.m,sp.m,(x,t)->E,(x,t)->zero(E),nothing)
+    param=MarsTP.TP.prepare(;E=(x,t)->E,B=(x,t)->zero(E),species=sp)
     itp=MarsTP.FieldWorkInterpolators(_->E,_->2E,_->-E)
     for x in (SA[Rm+500e3,0.,0.],SA[Router-150.,0.,0.])
         r=MC.trace_particle(x,SA[1000.,0.,0.],param,MC.Config(dt=.1,tmax=1.))

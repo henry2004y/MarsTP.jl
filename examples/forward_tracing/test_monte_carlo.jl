@@ -43,7 +43,7 @@ end
     TP=MarsTP.TP
     species=TP.SpeciesDict["O2+"]
     E=(x,t)->SA[0.,0.,0.];B=(x,t)->SA[0.,0.,0.]
-    p=(species.q/species.m,species.m,E,B,nothing)
+    p=TP.prepare(;E,B,species)
     x=SA[Rm+500e3,0.,0.];v=SA[1e4,0.,0.]
     c=MC.Config(tmax=1.,detector=x+SA[5000.,0.,0.],side=2000.)
     r=MC.trace_particle(x,v,p,c)
@@ -54,7 +54,7 @@ end
     @test r.residual==0
     # A positively charged ion initially along +x rotates toward -y in +Bz.
     B=(x,t)->SA[0.,0.,1e-8]
-    p=(species.q/species.m,species.m,E,B,nothing)
+    p=TP.prepare(;E,B,species)
     r=MC.trace_particle(x,v,p,c)
     @test r.v[2]<0
     @test norm(r.v)≈norm(v) rtol=1e-12
@@ -65,7 +65,7 @@ end
     @test r.status=="inner"
     @test norm(r.x)≈Rm+200e3 atol=1e-7
     zero_field=(x,t)->SA[0.,0.,0.]
-    param=(species.q/species.m,species.m,zero_field,zero_field,nothing)
+    param=TP.prepare(;E=zero_field,B=zero_field,species)
     inward=MC.trace_particle(x,SA[-1000.,0.,0.],param,MC.Config(dt=1.,tmax=301.))
     @test inward.status=="inner"
     @test inward.time≈300. atol=1e-9
