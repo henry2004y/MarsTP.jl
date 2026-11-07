@@ -1,32 +1,49 @@
 # MarsTP.jl
 
-MarsTP.jl is a Mars test-particle modeling package built on TestParticle.jl. It combines MHD electromagnetic fields and plasma moments with GITM and AMPS atmospheric inputs to support forward and backward particle tracing, velocity-distribution analysis at fixed locations, work calculations for different electric-field components, and ion escape analysis.
+MarsTP.jl is a Mars test-particle modeling package built on [TestParticle.jl](https://github.com/henry2004y/TestParticle.jl) (v0.26), [BorisPushers.jl](https://github.com/henry2004y/BorisPushers.jl) (v0.2), and [Batsrus.jl](https://github.com/henry2004y/Batsrus.jl). It combines BATSRUS 3D MHD electromagnetic fields and plasma moments with GITM and AMPS atmospheric inputs to support forward and backward particle tracing, velocity-distribution analysis at fixed locations, multi-channel electric-field and guiding-center work calculations, and ion escape analysis. All visualization and plotting utilities are written in Julia using `PyPlot`.
 
 ## Reproducible figure examples
 
 See [examples/README.md](examples/README.md) for the 800 km O2+ trajectory panels
-and the dayside/nightside electric-work maps, including Julia/Python source,
-the two PNG figures, prerequisites, run commands, and interpretation notes.
+and the dayside/nightside electric-work maps, including the Julia source and plotting scripts,
+the PNG figures, prerequisites, run commands, and interpretation notes.
 
 Saved forward trajectories can be analyzed with `forward_psd_saved`, using the
 same accumulator as `forward_psd`. `write_trajectory_batch` provides bounded
 batch output for large ensembles. See the [Monte Carlo API and reproducible
 three-probe example](examples/forward_tracing/monte_carlo_forward_tracing/README.md).
 
-## Data
+## Data and BATSRUS MHD Conversion
 
 Required runtime inputs live in `data/`:
 
-- `amps_sph.mat`
-- `gitm_sph.mat`
-- `O2plus_source_rates.mat`
+- `amps_sph.mat` (AMPS hot atomic oxygen grid)
+- `gitm_sph.mat` (GITM neutral atmosphere grid)
+- `O2plus_source_rates.mat` (plus converted `O2plus_source_rates_with_crustal.mat` and `O2plus_source_rates_without_crustal.mat`)
 
-The MHD `.vts` file is intentionally not tracked in Git. Put the converted file
-at `data/mars_fields_spherical_from_dat.vts` before running tracing.
+Raw 3D BATSRUS Tecplot outputs live in `BATSRUS-data/`:
+
+- `BATSRUS-data/MHD-with-crustal/3d__var_1_n00150000.dat`
+- `BATSRUS-data/MHD-without-crustal/3d__var_1_n00120000.dat`
+
+The converted `.vts` files are not tracked in Git due to size. Run `scripts/convert_batsrus_mhd.jl` to convert both BATSRUS `.dat` files into structured spherical `.vts` files (`120 × 72 × 144`, from 200 km altitude to $4\,R_M$) and generate their corresponding `.mat` source-rate files:
+
+```sh
+julia --project=. scripts/convert_batsrus_mhd.jl
+```
+
+This produces:
+
+- `data/mars_fields_with_crustal.vts` (and copies to default `data/mars_fields_spherical_from_dat.vts`)
+- `data/mars_fields_without_crustal.vts`
+- `data/O2plus_source_rates_with_crustal.mat`
+- `data/O2plus_source_rates_without_crustal.mat`
+
+Each converted `.vts` file stores reconstructed Ohm's-law electric field components (`E_Total [V/m]`, `E_conv [V/m]`, `E_hall [V/m]`, `E_gradpe [V/m]`, `E_res [V/m]`, and diagnostic `E_plot [V/m]`) along with `B_Field [T]` and plasma moments (`Hplus = Hswp + Hpp`, `Oplus`, `O2plus`, `CO2plus`, `T_e`, `n_e`). You can also pass a `.dat` path directly to `load_mhd_fields` or `load_mhd_moments`, or interpolate 2D slices via `interpolate_batsrus_slice`.
 
 ## Basic Use
 
-Fixed-step forward tracing can use NVIDIA GPUs through TestParticle 0.24:
+Fixed-step forward tracing can use NVIDIA GPUs through `TestParticle` v0.26 and `BorisPushers` v0.2:
 see [CPU/GPU example, benchmark and limitations](examples/gpu/README.md).
 Pass `backend=CUDA.CUDABackend()` and `solver=:boris` to `trace_forward`.
 Use `trace_forward_bounded` for independent particle stopping at the 200 km
@@ -66,11 +83,15 @@ cfg = BacktraceConfig(
 )
 
 result = run_backtrace_vdf(cfg)
+moments = vdf_moments(result)
+refined_cfg = refine_backtrace_config(result; dv_kms = 0.5, dvy_kms = 0.5)
+plot_vx_vz(result; output = "outputs/vdf_xz.png")
 ```
 
 The returned `f2d_xz` is the 3D VDF integrated over `Vy` using `sum(f) * dvy`.
+`vdf_moments` wraps `TestParticle.velocity_moments` to compute density `n_m3` and bulk velocity components `(Vx_kms, Vz_kms)`, and `refine_backtrace_config` wraps `TestParticle.refine_vdf_window` for two-stage adaptive velocity-window refinement.
 
-## Per-particle electric work
+## Per-particle electric and guiding-center work
 
 Build the electric-field interpolators once, then reuse them for saved in-memory
 trajectories (Cartesian positions in m, velocities in m/s, times in s):
@@ -79,9 +100,13 @@ trajectories (Cartesian positions in m, velocities in m/s, times in s):
 itp = build_field_work_interpolators()
 summary = field_work(sol, itp; species = "O2+")
 profile = Electric_field_work_profile(sol, itp; species = "O2+")
-# profile.t, profile.conv_eV, profile.hall_eV, profile.total_eV
+# profile.t, profile.conv_eV, profile.hall_eV, profile.gradpe_eV, profile.res_eV, profile.total_eV
 # profile.delta_kinetic_eV, profile.energy_residual_eV
-# profile.power_conv_eV_s, profile.power_hall_eV_s
+# profile.power_conv_eV_s, profile.power_hall_eV_s, profile.power_gradpe_eV_s, profile.power_res_eV_s
+
+# Guiding-center / adiabatic work channels and adiabaticity (TestParticle v0.26)
+ad = adiabatic_work_profile(sol, fields; species = "O2+")
+# ad.parallel_eV, ad.fermi_eV, ad.grad_eV, ad.betatron_local_eV, ad.betatron_eV, ad.kappa
 
 # solutions: TestParticle ensemble or vector returned by trace_forward
 per_particle = particle_field_work(solutions, itp; threaded = true)
@@ -89,7 +114,7 @@ histories = particle_field_work(solutions, itp; profiles = true, threaded = true
 ```
 
 Each component is signed work `q ∫ E_component ⋅ v dt` evaluated on the **same
-total-field trajectory**. Positive work adds energy; negative work removes it.
+total-field trajectory** (including convective $-\mathbf{U}\times\mathbf{B}$, Hall $(\mathbf{J}\times\mathbf{B})/(n_e e)$, electron pressure gradient $-\nabla p_e/(n_e e)$, and resistive $\eta\mu_0\mathbf{J}$ channels when present in the `.vts` file). Positive work adds energy; negative work removes it.
 Power is in eV/s, cumulative profiles in eV; `field_work` also returns J.
 The work functions do not run trajectories or save files. Single-particle calls
 reject ensembles with multiple members to avoid silently using only the first.
@@ -101,7 +126,7 @@ time integrations preserve signed time intervals. Work fractions do not predict
 the result of disabling a field component, because doing so changes the trajectory.
 Avoid evaluating interpolators beyond their field domain.
 
-Run the focused tests without the MHD input file:
+Run the unit tests:
 
 ```sh
 julia --threads=2 --project=. test/runtests.jl
@@ -112,23 +137,45 @@ The former name `field_work_profile` remains available as a compatibility alias 
 
 `examples/forward_tracing/hemisphere_work.jl` demonstrates `Electric_field_work_profile` on a
 reproducible 1000-particle, 800 km O2+ shell release. It uses four
-threads when launched by `examples/forward_tracing/plot_hemisphere_work.py`, starts at rest, and stops
+threads when launched by `examples/forward_tracing/plot_hemisphere_work.jl`, starts at rest, and stops
 at the 200 km or 4 Mars-radius boundary (20,000 s guard). Work ends at the last
 valid in-domain state. Energy closure above 0.1% triggers timestep refinement;
 this is a diagnostic, not a guarantee of full trajectory convergence.
 
-The Python script requires NumPy, Matplotlib and the user's `py_space_zc` library.
-Set `HEMISPHERE_WORK_PREVIEW` to customize the output PNG path. It plots six
+Set `HEMISPHERE_WORK_PREVIEW` to customize the output PNG path. `examples/forward_tracing/plot_hemisphere_work.jl` plots six
 XZ panels with dayside and nightside particles in separate rows and convection,
-Hall and total work in three columns. Each row uses its own symmetric-log color
+Hall and total work in three columns using `PyPlot`. Each row uses its own symmetric-log color
 scale. See [the example documentation](examples/README.md). Only the preview image is
 saved; trajectory data pass through memory. Threaded output is not ordered, so
 each record carries its original particle ID.
 
+## Scripts and Examples Overview
+
+- **Data Conversion & Diagnostics (`scripts/`)**:
+  - `scripts/convert_batsrus_mhd.jl`: Convert BATSRUS `.dat` files into `.vts` and `.mat` source-rate files.
+  - `scripts/single_particle_work.jl` & `scripts/plot_single_particle_work.jl`: Single-particle forward tracing, step-convergence check, and cumulative work/power plotting.
+  - `scripts/dayside_work.jl` & `scripts/plot_dayside_work.jl`: Dayside 800 km shell work integration and plotting.
+  - `scripts/sphere_trajectories.jl` & `scripts/plot_dayside_yz.jl`: Spherical shell trajectory tracing and dayside YZ projections.
+  - `scripts/random_probe_backtrace.jl`, `scripts/check_backtrace_probe.jl`, `scripts/smoke_ionosphere.jl`: Backtrace probe checks and ionosphere smoke tests.
+- **Background Models (`examples/background_models/`)**:
+  - `plot_atmosphere.jl`: GITM neutral density/temperature and AMPS hot oxygen profiles and maps.
+  - `plot_ionosphere_maps.jl`: MHD O2+ flux and temperature maps at 200 and 400 km.
+  - `plot_outflow_500km.jl`, `plot_outflow_altitudes.jl`, `plot_speed_altitudes.jl`, `plot_speed_inward_altitudes.jl`, `plot_speed_outward_altitudes.jl`: Multi-altitude O2+ and O+ flux/speed maps.
+- **Forward Tracing (`examples/forward_tracing/`)**:
+  - `sphere_trajectories.jl`, `plot_sphere_trajectories.jl`, `plot_trajectories_xz_yz.jl`: 800 km spherical shell release trajectories in XZ/YZ planes.
+  - `hemisphere_work.jl`, `plot_hemisphere_work.jl`: Dayside and nightside convective, Hall, and total work maps.
+  - `monte_carlo_shell.jl`, `analyze_monte_carlo.jl`, `maxwellian_source.jl`: Weighted Maxwellian shell Monte Carlo tracing and analysis.
+  - `monte_carlo_forward_tracing/`: Full 500 km shell Monte Carlo suite (`monte_carlo_shell.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
+- **Backward Tracing (`examples/backward_tracing/`)**:
+  - `random_probe_backtrace.jl`, `plot_probe_backtrace.jl`: Random-velocity backtrace trajectories from `(0, 0, 2 Rm)`.
+  - `probe_vdf_integrated.jl`, `plot_probe_vdf.jl`, `check_probe_vdf_grid.jl`: Velocity-integrated backtraced VDFs.
+  - `probe_energy_gain.jl`, `plot_energy_gain.jl`, `refine_energy_gain.jl`: PSD-weighted forward-time energy gain maps.
+  - `probe_path_power.jl`, `plot_path_power.jl`: Local power and cumulative work along backtraced paths.
+
 ## Perlmutter
 
 Use `scripts/perlmutter/run_backtrace_vdf.slurm` as the starting point. Copy or
-download the MHD `.vts` file into `data/` on Perlmutter before submitting.
+generate the MHD `.vts` file into `data/` on Perlmutter before submitting.
 
 ## MHD ionosphere thin-sheet source in backtracing
 
@@ -172,7 +219,7 @@ Run `julia --project=. test/runtests.jl` for analytic tests and
 
 ## Trajectory visualization
 
-[src/visualization](src/visualization/README.md) provides standalone Python plots of Mars, BS/MPB and two- or three-dimensional trajectories, with species and particle-ID selection from forward or backward trajectory files.
+[src/visualization](src/visualization/README.md) provides Julia (`PyPlot`) plots of Mars, BS/MPB and two- or three-dimensional trajectories (`plot_mars`, `bs_mpb`, `plot_mars_context`, `load_trajectories`, `plot_trajectory`), with species and particle-ID selection from forward or backward trajectory files.
 
 
 ## Save forward electric work

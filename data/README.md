@@ -8,15 +8,19 @@ This directory should contain only prepared runtime inputs.
 | `gitm_sph.mat` | GITM neutral atmosphere spherical grid. |
 | `O2plus_source_rates.mat` | Prepared O2+ production and outflow rates. |
 
-The tracing code also expects the converted MHD field file at:
+The tracing code expects the converted MHD field files in `data/`:
 
 ```text
 data/mars_fields_spherical_from_dat.vts
+data/mars_fields_with_crustal.vts
+data/mars_fields_without_crustal.vts
 ```
 
-This `.vts` file is not uploaded to GitHub because it is larger than GitHub's
-normal file-size limit. Generate it from `3d__mhd_1_n00010000.dat` or copy it to
-Perlmutter manually.
+These `.vts` files (and the generated `data/O2plus_source_rates_with_crustal.mat` and `data/O2plus_source_rates_without_crustal.mat`) are not uploaded to GitHub because of GitHub's file-size limit. Generate them directly from the BATSRUS `.dat` files in `BATSRUS-data/` by running:
+
+```sh
+julia --project=. scripts/convert_batsrus_mhd.jl
+```
 
 Important fields in `O2plus_source_rates.mat`:
 

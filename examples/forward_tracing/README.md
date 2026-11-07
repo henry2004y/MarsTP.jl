@@ -11,12 +11,12 @@ See [XZ and YZ trajectory panels](trajectories_xz_yz.md) for Figure 1.
 | File | Purpose |
 | --- | --- |
 | [sphere_trajectories.jl](sphere_trajectories.jl) | Integration and boundary termination |
-| [plot_sphere_trajectories.py](plot_sphere_trajectories.py) | Optional legacy XZ panels, `trajectories_xz_legacy.png` |
-| [plot_trajectories_xz_yz.py](plot_trajectories_xz_yz.py) | All, dayside and nightside XZ/YZ panels |
+| [plot_sphere_trajectories.jl](plot_sphere_trajectories.jl) | Optional legacy XZ panels, `trajectories_xz_legacy.png` |
+| [plot_trajectories_xz_yz.jl](plot_trajectories_xz_yz.jl) | All, dayside and nightside XZ/YZ panels |
 | [hemisphere_work.jl](hemisphere_work.jl) | Per-particle work and energy closure |
-| [plot_hemisphere_work.py](plot_hemisphere_work.py) | Dayside/nightside panels for three field terms |
+| [plot_hemisphere_work.jl](plot_hemisphere_work.jl) | Dayside/nightside panels for three field terms |
 
-The plotting scripts call Julia files in this directory. Paths are passed through stdout into Python memory; these examples save PNGs rather than trajectory files, so replotting reintegrates the trajectories.
+The plotting scripts run the Julia trajectory/work scripts in this directory and render the figures via `PyPlot` and the MarsTP `src/visualization` module; these examples save PNGs rather than trajectory files, so replotting reintegrates the trajectories.
 
 ## Initial conditions and boundaries
 
@@ -51,8 +51,8 @@ These examples use electromagnetic fields only, without AMPS, GITM or source-rat
 From the repository root:
 
 ```sh
-python examples/forward_tracing/plot_trajectories_xz_yz.py
-python examples/forward_tracing/plot_hemisphere_work.py
+julia --project=. examples/forward_tracing/plot_trajectories_xz_yz.jl
+julia --project=. examples/forward_tracing/plot_hemisphere_work.jl
 ```
 
 Default PNGs are written to `images/`, replacing matching names. To use different paths in PowerShell:
@@ -60,8 +60,8 @@ Default PNGs are written to `images/`, replacing matching names. To use differen
 ```powershell
 $env:TRAJECTORY_PREVIEW = "$PWD/trajectory_preview.png"
 $env:HEMISPHERE_WORK_PREVIEW = "$PWD/work_preview.png"
-python examples/forward_tracing/plot_trajectories_xz_yz.py
-python examples/forward_tracing/plot_hemisphere_work.py
+julia --project=. examples/forward_tracing/plot_trajectories_xz_yz.jl
+julia --project=. examples/forward_tracing/plot_hemisphere_work.jl
 ```
 
 Trajectory settings can be changed using `RELEASE_ALTITUDE_KM`, `PARTICLE_COUNT`, `TRACE_DT` and `TRACE_LIMIT` (defaults: 800, 1000, 0.1 and 20000). The work example fixes 800 km and 1000 particles. Its plotting script sets `WORK_HEMISPHERE=all`; Julia alone defaults to dayside analysis.

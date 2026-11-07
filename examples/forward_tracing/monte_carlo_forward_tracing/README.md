@@ -10,7 +10,7 @@ Monte Carlo represents a continuous velocity distribution with a finite set of w
 
 ![Maxwellian and Monte Carlo particle weights](monte_carlo_sampling.png)
 
-The [plotting script](plot_monte_carlo_sampling.py) uses O₂⁺ at density 5 cm⁻³ (5×10⁶ m⁻³), bulk velocity (−10,0) km/s and physical temperature 10 eV. It draws 100,000 two-dimensional velocities with vz=0. The **sampling Maxwellian** has temperature 40 eV. A source area of **1 m²** and bulk speed **10 km/s** define the prescribed particle-rate weights. Both signs of each sampled velocity component are retained.
+The [plotting script](plot_monte_carlo_sampling.jl) uses O₂⁺ at density 5 cm⁻³ (5×10⁶ m⁻³), bulk velocity (−10,0) km/s and physical temperature 10 eV. It draws 100,000 two-dimensional velocities with vz=0. The **sampling Maxwellian** has temperature 40 eV. A source area of **1 m²** and bulk speed **10 km/s** define the prescribed particle-rate weights. Both signs of each sampled velocity component are retained.
 
 All three panels use turbo. The left panel shows the analytical two-dimensional Maxwellian (s² m⁻⁵). The middle and right panels color individual samples by `density_weight` (m⁻³) and `flux_weight` (s⁻¹), respectively. The rate weight is the density weight multiplied by area and bulk speed. There is no velocity-sign cutoff or shaded excluded half-plane.
 
@@ -96,7 +96,7 @@ $$
 \frac{d\mathbf v}{dt}=\frac qm(\mathbf E+\mathbf v\times\mathbf B).
 $$
 
-[ShellMonteCarlo.run_monte_carlo](monte_carlo_shell.jl) calls `ShellMonteCarlo.trace_particle`, which uses `MarsTP.TP.update_velocity_boris`. The fields are static total MHD E and B. Integration uses half-step velocities, while saved velocities are synchronized with saved positions.
+[ShellMonteCarlo.run_monte_carlo](monte_carlo_shell.jl) calls `ShellMonteCarlo.trace_particle`, which uses `MarsTP.BorisPushers.update_velocity_boris`. The fields are static total MHD E and B. Integration uses half-step velocities, while saved velocities are synchronized with saved positions.
 
 | Parameter | Setting |
 | --- | --- |
@@ -358,28 +358,29 @@ Compute and plot detector PSD:
 ```powershell
 $example = 'examples/forward_tracing/monte_carlo_forward_tracing'
 julia --project=. "$example/analyze_saved_probes.jl" outputs/my_run outputs/my_probes
-python "$example/plot_library_psd.py" outputs/my_probes
+julia --project=. "$example/plot_library_psd.jl" outputs/my_probes
 ```
 
 Regenerate the sampling illustration:
 
 ```powershell
-python examples/forward_tracing/monte_carlo_forward_tracing/plot_monte_carlo_sampling.py
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_monte_carlo_sampling.jl
 ```
 
-Python requires NumPy, Matplotlib and h5py. Trajectory backgrounds use [src/visualization](../../../src/visualization/README.md).
+Plotting uses `PyPlot` (calling Matplotlib). Trajectory backgrounds use [src/visualization](../../../src/visualization/README.md).
 
 | Code | Purpose |
 | --- | --- |
-| [plot_monte_carlo_sampling.py](plot_monte_carlo_sampling.py) | Maxwellian and particle-weight illustration |
+| [plot_monte_carlo_sampling.jl](plot_monte_carlo_sampling.jl) | Maxwellian and particle-weight illustration |
 | [monte_carlo_shell.jl](monte_carlo_shell.jl) | Source sampling, Boris tracing and batch output |
-| [plot_trajectories.py](plot_trajectories.py) | Trajectory projections |
+| [plot_trajectories.jl](plot_trajectories.jl) | Trajectory projections |
 | [analyze_saved_probes.jl](analyze_saved_probes.jl) | Detector PSD from saved paths |
-| [plot_library_psd.py](plot_library_psd.py) | Integrated two-dimensional VDFs |
+| [plot_library_psd.jl](plot_library_psd.jl) | Integrated two-dimensional VDFs |
+| [plot_bulk_speed_flux_maps.jl](plot_bulk_speed_flux_maps.jl) | Multi-altitude O2+ and O+ bulk-speed flux maps |
 
 ## Validation of the bulk-speed update
 
-Validated with Julia 1.12.6 and TestParticle 0.24.1. The package suite passed 503 assertions and the shell suite passed 255 assertions. Checks include exact patch-rate normalization, both radial velocity signs with positive weights, independence from normal direction, zero rate at zero bulk speed, the explicit legacy estimator, and inward propagation below the source and analytic absorption at 200 km.
+Validated with Julia 1.12+ and TestParticle 0.26.0 / BorisPushers 0.2.0. Checks include exact patch-rate normalization, both radial velocity signs with positive weights, independence from normal direction, zero rate at zero bulk speed, the explicit legacy estimator, and inward propagation below the source and analytic absorption at 200 km.
 
 A historical local-field smoke run with the former 500 km absorbing boundary used 6 source cells, 10 particles per cell, dt=0.1 s and maximum age 0.2 s. All 60 saved particles had positive rate weights; 28 inward launches terminated at time zero and 32 reached the time limit. Total prescribed injection was 2.984432090205178e21 s^-1 for the sampled cells, with per-cell sums and all saved rate weights verified. This short run is an implementation check, not an escape-rate or detector-PSD convergence result. The full million-particle ensemble was not rerun.
 
