@@ -70,7 +70,7 @@ include("backtrace_ionosphere.jl")
     for sign in (-1.,1.), solver in (:boris,:adaptive)
         E=SA[0.,0.,sign*1e-5]
         fields=MarsTP.FieldWorkInterpolators(_->E,_->2E,_->-E)
-        param=MarsTP.TP.prepare(_->E,_->SA[0.,0.,1e-9];species=MarsTP.TP.SpeciesDict["O2+"])
+        param=MarsTP.TP.prepare(;E=_->E,B=_->SA[0.,0.,1e-9],species=MarsTP.TP.SpeciesDict["O2+"])
         cfg=BacktraceConfig(include_ionosphere=false,solver=solver,dt=-.03,tspan=(0.,-.97))
         observed=zeros(3)
         observe=(a,b,ta,tb,dw)->begin
@@ -85,3 +85,5 @@ include("backtrace_ionosphere.jl")
         @test r.work_eV[3] ≈ -r.work_eV[1]
     end
 end
+
+include("visualization.jl")

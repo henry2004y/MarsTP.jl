@@ -2,6 +2,7 @@
 # Output goes directly to Python, with no trajectory file.
 using MarsTP, StaticArrays, LinearAlgebra
 const TP = MarsTP.TP
+const BP = MarsTP.BorisPushers
 function main()
     fields = load_mhd_fields()
     param = MarsTP.mhd_param(fields; species = "O2+")
@@ -22,7 +23,7 @@ function main()
             return false
         end
         prob = TP.TraceProblem(vcat(p0, SA[0.,0.,0.]), (0.,20000.), param)
-        sol = TP.solve(prob, TP.Boris(); dt, isoutside=outside,
+        sol = TP.solve(prob, BP.Boris(); dt, isoutside=outside,
             maxiters=ceil(Int,20000/dt)+1)
         work = field_work(sol, itps)
         kinetic = u -> 0.5species.m * sum(abs2, u[4:6]) / TP.eV

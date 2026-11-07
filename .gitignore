@@ -8,6 +8,7 @@ logs/
 *.png
 *.vts
 *.dat
+*.mat
 *.partial
 
 !data/amps_sph.mat

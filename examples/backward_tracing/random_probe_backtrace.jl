@@ -1,5 +1,6 @@
 using MarsTP, StaticArrays, LinearAlgebra, Random
 const TP = MarsTP.TP
+const BP = MarsTP.BorisPushers
 
 # Callback records positions at integer times and detects radial exits.
 # TestParticle 0.24 synchronizes velocity before this callback, so check the
@@ -40,7 +41,7 @@ function trace(v0, param, rin, rout, dt; limit=500.0)
         return false
     end
     prob = TP.TraceProblem(vcat(p0, v0), (0.0, -limit), param)
-    TP.solve(prob, TP.Boris(); dt, isoutside=boundary,
+    TP.solve(prob, BP.Boris(); dt, isoutside=boundary,
         save_everystep=false, save_start=false, save_end=false,
         maxiters=ceil(Int, limit/abs(dt))+1)
     @assert all(diff(times) .< 0)

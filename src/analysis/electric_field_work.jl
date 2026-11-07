@@ -2,33 +2,42 @@ struct FieldWorkInterpolators
     total::Any
     conv::Any
     hall::Any
+    gradpe::Any
+    res::Any
 end
 
-function build_field_work_interpolators(mhd_file = data_path("mars_fields_spherical_from_dat.vts"))
+FieldWorkInterpolators(total, conv, hall) =
+    FieldWorkInterpolators(total, conv, hall, nothing, nothing)
+
+function _try_load_electric_itp(mhd_file, selector)
+    try
+        f = load_mhd_fields(mhd_file; electric_field = selector)
+        return TP.build_interpolator(TP.StructuredGrid, f.E, f.r, f.theta, f.phi)
+    catch
+        return nothing
+    end
+end
+
+function build_field_work_interpolators(
+        mhd_file = data_path("mars_fields_spherical_from_dat.vts");
+        include_extended::Bool = true,
+    )
     total = load_mhd_fields(mhd_file; electric_field = :total)
     conv = load_mhd_fields(mhd_file; electric_field = :conv)
     hall = load_mhd_fields(mhd_file; electric_field = :hall)
+    gradpe = include_extended ? _try_load_electric_itp(mhd_file, :gradpe) : nothing
+    res = include_extended ? _try_load_electric_itp(mhd_file, :res) : nothing
     return FieldWorkInterpolators(
         TP.build_interpolator(TP.StructuredGrid, total.E, total.r, total.theta, total.phi),
         TP.build_interpolator(TP.StructuredGrid, conv.E, conv.r, conv.theta, conv.phi),
         TP.build_interpolator(TP.StructuredGrid, hall.E, hall.r, hall.theta, hall.phi),
+        gradpe,
+        res,
     )
 end
 
 function _cartesian_velocity_to_spherical(v, p)
-    x, y, z = p
-    rxy = hypot(x, y)
-    r = hypot(rxy, z)
-    sin_theta = rxy / r
-    cos_theta = z / r
-    sin_phi = rxy == 0 ? 0.0 : y / rxy
-    cos_phi = rxy == 0 ? 1.0 : x / rxy
-    vx, vy, vz = v
-    return SA[
-        vx * sin_theta * cos_phi + vy * sin_theta * sin_phi + vz * cos_theta,
-        vx * cos_theta * cos_phi + vy * cos_theta * sin_phi - vz * sin_theta,
-        -vx * sin_phi + vy * cos_phi,
-    ]
+    return TP.cart2sphvec(v[1], v[2], v[3], p[1], p[2], p[3])
 end
 
 function _work_one(itp, p, v, q, dt)
@@ -72,6 +81,9 @@ function field_work(sol, itp::FieldWorkInterpolators; species = "O2+")
     total_J = 0.0
     conv_J = 0.0
     hall_J = 0.0
+    gradpe_J = 0.0
+    res_J = 0.0
+    has_ext = itp.gradpe !== nothing || itp.res !== nothing
     for i in 1:(length(traj.t) - 1)
         u0, u1 = traj.u[i], traj.u[i + 1]
         p = SA[0.5 * (u0[1] + u1[1]), 0.5 * (u0[2] + u1[2]), 0.5 * (u0[3] + u1[3])]
@@ -81,9 +93,14 @@ function field_work(sol, itp::FieldWorkInterpolators; species = "O2+")
         total_J += _work_one(itp.total, p, v, q, dt)
         conv_J += _work_one(itp.conv, p, v, q, dt)
         hall_J += _work_one(itp.hall, p, v, q, dt)
+        itp.gradpe !== nothing && (gradpe_J += _work_one(itp.gradpe, p, v, q, dt))
+        itp.res !== nothing && (res_J += _work_one(itp.res, p, v, q, dt))
     end
-    return (; total_J, conv_J, hall_J,
+    base = (; total_J, conv_J, hall_J,
         total_eV = total_J / TP.eV, conv_eV = conv_J / TP.eV, hall_eV = hall_J / TP.eV)
+    has_ext || return base
+    return (; base..., gradpe_J, res_J,
+        gradpe_eV = gradpe_J / TP.eV, res_eV = res_J / TP.eV)
 end
 
 """
@@ -103,15 +120,17 @@ function Electric_field_work_profile(sol, itp::FieldWorkInterpolators; species =
     traj = _work_trajectory(sol)
     sp = TP.SpeciesDict[species]
     n = length(traj.t)
-    work = zeros(n, 3)
-    power = zeros(n, 3)
+    has_ext = itp.gradpe !== nothing || itp.res !== nothing
+    work = zeros(n, 5)
+    power = zeros(n, 5)
     kinetic = zeros(n)
-    fields = (itp.total, itp.conv, itp.hall)
+    fields = (itp.total, itp.conv, itp.hall, itp.gradpe, itp.res)
     for i in 1:n
         u = traj.u[i]
         p, v = SA[u[1], u[2], u[3]], SA[u[4], u[5], u[6]]
         kinetic[i] = 0.5 * sp.m * dot(v, v) / TP.eV
-        for j in 1:3
+        for j in 1:5
+            fields[j] === nothing && continue
             power[i, j] = _work_one(fields[j], p, v, sp.q, 1.0) / TP.eV
         end
         if i > 1
@@ -119,22 +138,36 @@ function Electric_field_work_profile(sol, itp::FieldWorkInterpolators; species =
             pm = 0.5 * (p + SA[a[1], a[2], a[3]])
             vm = 0.5 * (v + SA[a[4], a[5], a[6]])
             dt = traj.t[i] - traj.t[i - 1]
-            for j in 1:3
+            for j in 1:5
+                fields[j] === nothing && continue
                 work[i, j] = work[i - 1, j] + _work_one(fields[j], pm, vm, sp.q, dt) / TP.eV
             end
         end
     end
-    total_eV, conv_eV, hall_eV = work[:, 1], work[:, 2], work[:, 3]
+    total_eV, conv_eV, hall_eV, gradpe_eV, res_eV =
+        work[:, 1], work[:, 2], work[:, 3], work[:, 4], work[:, 5]
     delta_kinetic_eV = kinetic .- first(kinetic)
     energy_residual_eV = delta_kinetic_eV .- total_eV
-    field_sum_residual_eV = total_eV .- conv_eV .- hall_eV
+    field_sum_residual_eV = total_eV .- conv_eV .- hall_eV .- gradpe_eV .- res_eV
+    if !has_ext
+        summary = (; total_eV = last(total_eV), conv_eV = last(conv_eV),
+            hall_eV = last(hall_eV), delta_kinetic_eV = last(delta_kinetic_eV),
+            energy_residual_eV = last(energy_residual_eV),
+            field_sum_residual_eV = last(field_sum_residual_eV))
+        return (; t = collect(traj.t), total_eV, conv_eV, hall_eV,
+            power_total_eV_s = power[:, 1], power_conv_eV_s = power[:, 2],
+            power_hall_eV_s = power[:, 3], kinetic_eV = kinetic, delta_kinetic_eV,
+            energy_residual_eV, field_sum_residual_eV, summary)
+    end
     summary = (; total_eV = last(total_eV), conv_eV = last(conv_eV),
-        hall_eV = last(hall_eV), delta_kinetic_eV = last(delta_kinetic_eV),
+        hall_eV = last(hall_eV), gradpe_eV = last(gradpe_eV), res_eV = last(res_eV),
+        delta_kinetic_eV = last(delta_kinetic_eV),
         energy_residual_eV = last(energy_residual_eV),
         field_sum_residual_eV = last(field_sum_residual_eV))
-    return (; t = collect(traj.t), total_eV, conv_eV, hall_eV,
+    return (; t = collect(traj.t), total_eV, conv_eV, hall_eV, gradpe_eV, res_eV,
         power_total_eV_s = power[:, 1], power_conv_eV_s = power[:, 2],
-        power_hall_eV_s = power[:, 3], kinetic_eV = kinetic, delta_kinetic_eV,
+        power_hall_eV_s = power[:, 3], power_gradpe_eV_s = power[:, 4],
+        power_res_eV_s = power[:, 5], kinetic_eV = kinetic, delta_kinetic_eV,
         energy_residual_eV, field_sum_residual_eV, summary)
 end
 
@@ -212,4 +245,66 @@ function trajectory_work(sol,itp;species="O2+",mode=:steps,power=false)
         energy_residual_eV=k1-k0-totals[1],max_abs_energy_residual_eV=maxresidual,
         field_sum_residual_eV=totals[1]-totals[2]-totals[3])
     return (;summary,increments,powers)
+end
+
+"""
+    adiabatic_work_profile(sol, param; relativistic=false)
+
+Integrate TestParticle v0.26's gyro-averaged guiding-center / adiabatic work rates
+(`TP.get_work_rates` and `TP.get_work_channels`) along a trajectory `sol` using
+midpoint quadrature, returning cumulative work [eV] and instantaneous power [eV/s]
+for the parallel (`E_parallel`), Fermi (curvature drift), grad-B, local betatron,
+and combined betatron (`grad + betatron_local`) channels.
+"""
+function adiabatic_work_profile(sol, param; relativistic::Bool = false)
+    traj = _work_trajectory(sol)
+    n = length(traj.t)
+    rates_eV_s = zeros(n, 4)
+    work_eV = zeros(n, 4)
+    for i in 1:n
+        u = SVector{6, Float64}(traj.u[i][1:6])
+        r_W = TP.get_work_rates(u, param, traj.t[i]; relativistic)
+        for j in 1:4
+            rates_eV_s[i, j] = r_W[j] / TP.eV
+        end
+        if i > 1
+            u_prev = SVector{6, Float64}(traj.u[i - 1][1:6])
+            u_mid = 0.5 * (u_prev + u)
+            t_mid = 0.5 * (traj.t[i - 1] + traj.t[i])
+            dt = traj.t[i] - traj.t[i - 1]
+            r_mid_W = TP.get_work_rates(u_mid, param, t_mid; relativistic)
+            for j in 1:4
+                work_eV[i, j] = work_eV[i - 1, j] + r_mid_W[j] * dt / TP.eV
+            end
+        end
+    end
+    parallel_eV = work_eV[:, 1]
+    fermi_eV = work_eV[:, 2]
+    grad_eV = work_eV[:, 3]
+    betatron_local_eV = work_eV[:, 4]
+    betatron_eV = grad_eV .+ betatron_local_eV
+    total_adiabatic_eV = parallel_eV .+ fermi_eV .+ betatron_eV
+    summary = (;
+        parallel_eV = last(parallel_eV),
+        fermi_eV = last(fermi_eV),
+        grad_eV = last(grad_eV),
+        betatron_local_eV = last(betatron_local_eV),
+        betatron_eV = last(betatron_eV),
+        total_adiabatic_eV = last(total_adiabatic_eV),
+    )
+    return (;
+        t = collect(traj.t),
+        parallel_eV,
+        fermi_eV,
+        grad_eV,
+        betatron_local_eV,
+        betatron_eV,
+        total_adiabatic_eV,
+        power_parallel_eV_s = rates_eV_s[:, 1],
+        power_fermi_eV_s = rates_eV_s[:, 2],
+        power_grad_eV_s = rates_eV_s[:, 3],
+        power_betatron_local_eV_s = rates_eV_s[:, 4],
+        power_betatron_eV_s = rates_eV_s[:, 3] .+ rates_eV_s[:, 4],
+        summary,
+    )
 end

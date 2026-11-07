@@ -1,5 +1,6 @@
 using MarsTP, StaticArrays, LinearAlgebra, Random
 const TP = MarsTP.TP
+const BP = MarsTP.BorisPushers
 function main()
     rng = Xoshiro(20260905)
     positions = map(1:1000) do _
@@ -34,7 +35,7 @@ function main()
         actual_dt = 0.1
         for dt in (0.1, 0.05, 0.025, 0.0125)
             status[] = "time_limit"
-            sol=TP.solve(prob,TP.Boris();dt,isoutside=outside,
+            sol=TP.solve(prob,BP.Boris();dt,isoutside=outside,
                 maxiters=ceil(Int,20000/dt)+1)
             p=Electric_field_work_profile(sol,itp)
             actual_dt = dt

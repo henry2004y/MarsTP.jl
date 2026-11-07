@@ -7,6 +7,7 @@ GPU transfers and host solution construction; exclude field file I/O and JIT.
 using MarsTP, TestParticle, CUDA, KernelAbstractions, StaticArrays
 using Random, Statistics, Dates, TOML, SHA, LinearAlgebra
 const TP = TestParticle
+const BP = MarsTP.BorisPushers
 const KA = KernelAbstractions
 
 function timed_solve(f; repeats=3)
@@ -41,7 +42,7 @@ function differences(a,b)
 end
 
 function uniform_problem(states; dt=.01)
-    p = TP.prepare(_ -> SA[0.,0.,0.], _ -> SA[0.,0.,1e-8]; species=TP.Proton)
+    p = TP.prepare(; E = _ -> SA[0.,0.,0.], B = _ -> SA[0.,0.,1e-8], species=TP.Proton)
     pf = (prob,ctx) -> TP.remake(prob;u0=states[ctx.sim_id])
     return TP.TraceProblem(first(states),(0.,10.),p;prob_func=pf)
 end
@@ -54,7 +55,7 @@ function physics_checks(gpu)
     errors = Float64[]
     energy = 0.
     for dt in (.02,.01)
-        sol = only(TP.solve(prob,TP.Boris(),gpu;dt,trajectories=1,saveat=.1).u)
+        sol = only(TP.solve(prob,BP.Boris(),gpu;dt,trajectories=1,saveat=.1).u)
         expected = SA[1e5/omega*sin(omega*10),1e5/omega*(cos(omega*10)-1),2e5]
         push!(errors,norm(sol.u[end][1:3]-expected))
         energy = maximum(abs(sum(abs2,u[4:6])/sum(abs2,state[4:6])-1) for u in sol.u)
@@ -62,9 +63,9 @@ function physics_checks(gpu)
         @assert energy < 1e-10
     end
     @assert errors[2] < .3errors[1]
-    zero_p = TP.prepare(_->SA[0.,0.,0.],_->SA[0.,0.,0.];species=TP.Proton)
+    zero_p = TP.prepare(; E = _->SA[0.,0.,0.], B = _->SA[0.,0.,0.], species=TP.Proton)
     zero_prob = TP.TraceProblem(state,(0.,1.),zero_p)
-    zero_sol = only(TP.solve(zero_prob,TP.Boris(),gpu;dt=.01,saveat=.1).u)
+    zero_sol = only(TP.solve(zero_prob,BP.Boris(),gpu;dt=.01,saveat=.1).u)
     @assert zero_sol.u[end] ≈ SA[1e5,0.,2e4,1e5,0.,2e4]
     return Dict("energy_relative_error"=>energy,"position_error_dt_002_m"=>errors[1],
         "position_error_dt_001_m"=>errors[2],"zero_field_passed"=>true,
@@ -106,7 +107,7 @@ function main()
             for mode in ("cpu_serial","cpu_threads","gpu")
                 f = if kind == "uniform"
                     alg = mode == "cpu_serial" ? TP.EnsembleSerial() : mode == "cpu_threads" ? TP.EnsembleThreads() : gpu
-                    () -> TP.solve(prob,TP.Boris(),alg;dt=.01,trajectories=n,saveat=1.).u
+                    () -> TP.solve(prob,BP.Boris(),alg;dt=.01,trajectories=n,saveat=1.).u
                 else
                     backend = mode == "cpu_serial" ? nothing : mode == "cpu_threads" ? KA.CPU() : gpu
                     () -> [only(s.u) for s in trace_forward(mhd_states;config=cfg,fields,backend,saveat=.1)]

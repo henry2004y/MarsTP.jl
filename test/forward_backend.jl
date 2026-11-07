@@ -43,7 +43,7 @@ end
     # out-of-grid node that velocity is NaN, while the drift position is valid.
     E = x -> Rinner <= norm(x) <= Router ? SA[0.,0.,0.] : SA[NaN,NaN,NaN]
     B = x -> Rinner <= norm(x) <= Router ? SA[0.,0.,1e-9] : SA[NaN,NaN,NaN]
-    p = MarsTP.TP.prepare(E,B;species=MarsTP.TP.SpeciesDict["O2+"])
+    p = MarsTP.TP.prepare(; E=E, B=B, species=MarsTP.TP.SpeciesDict["O2+"])
     for solver in (:boris,:adaptive)
         cfg = BacktraceConfig(include_ionosphere=false,solver=solver,dt=-.2,tspan=(0.,-1.),safety=.001)
         for (z,vz,status,radius) in ((Router-100.,-1000.,4,Router),(Rinner+100.,1000.,2,Rinner))

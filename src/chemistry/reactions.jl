@@ -14,7 +14,7 @@ const RATE_EI_O = [
     8.625e-8, 8.257e-8, 7.709e-8,
 ] .* CM3S_TO_M3S
 
-const RATE_EI_O_ITP = LinearInterpolant(TEMP_E, RATE_EI_O, extrap = ConstExtrap())
+const RATE_EI_O_ITP = linear_interp(TEMP_E, RATE_EI_O; extrap = ClampExtrap())
 
 CO2p_O_to_O2p_CO(nCO2p, nO) = @. (1.64e-10 * CM3S_TO_M3S) * nCO2p * nO
 CO2_Op_to_O2p_CO(nCO2, nOp, Ti) = @. (1.1e-9 * (800.0 / Ti)^0.39 * CM3S_TO_M3S) * nCO2 * nOp

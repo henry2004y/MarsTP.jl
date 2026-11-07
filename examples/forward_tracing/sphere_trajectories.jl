@@ -1,6 +1,7 @@
 # Stream trajectories to Python over stdout; no simulation files are written.
 using MarsTP, StaticArrays, LinearAlgebra, Random
 const TP = MarsTP.TP
+const BP = MarsTP.BorisPushers
 
 function trace_particle(p0, param, dt, limit)
     previous = Ref(p0)
@@ -37,7 +38,7 @@ function trace_particle(p0, param, dt, limit)
         return false
     end
     prob = TP.TraceProblem(vcat(p0, SA[0.0, 0.0, 0.0]), (0.0, limit), param)
-    sol = TP.solve(prob, TP.Boris(); dt, isoutside = boundary,
+    sol = TP.solve(prob, BP.Boris(); dt, isoutside = boundary,
         saveat = 5dt, maxiters = ceil(Int, limit / dt) + 1)
     points = [SA[u[1], u[2], u[3]] / Rm for u in sol.u]
     if status[] in ("inner", "outer")
@@ -67,7 +68,7 @@ function main()
         direction / norm(direction) * max(release_radius, fields.r[1] + 1e-8)
     end
     println(stderr, "Loaded fields; tracing $n O2+ particles at $altitude km, dt=$dt s, guard=$limit s, threads=$(Threads.nthreads())")
-    efield, bfield = param[3], param[4]
+    efield, bfield = param.E, param.B
     println(stderr, "Total E at (3,0,0) RM [V/m]: ", efield(SA[3Rm, 0.0, 0.0], 0.0))
     println(stderr, "B at (3,0,0) RM [T]: ", bfield(SA[3Rm, 0.0, 0.0], 0.0))
     dayside = filter(p -> p[1] > 0, positions)

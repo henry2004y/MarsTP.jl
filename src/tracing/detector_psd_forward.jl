@@ -92,11 +92,15 @@ function _psd_trajectory(sol, sp)
         sol.retcode in (TP.ReturnCode.Success, TP.ReturnCode.Terminated) ||
             throw(ArgumentError("Failed trajectory: $(sol.retcode)"))
     end
-    if hasproperty(sol, :prob) && hasproperty(sol.prob, :p) &&
-            sol.prob.p isa Tuple && length(sol.prob.p) >= 4
+    if hasproperty(sol, :prob) && hasproperty(sol.prob, :p)
         p = sol.prob.p
-        isapprox(p[1], sp.q/sp.m; rtol=1e-10) && isapprox(p[2], sp.m; rtol=1e-10) ||
-            throw(ArgumentError("Trajectory species does not match requested species"))
+        if hasproperty(p, :q2m) && hasproperty(p, :m)
+            isapprox(p.q2m, sp.q/sp.m; rtol=1e-10) && isapprox(p.m, sp.m; rtol=1e-10) ||
+                throw(ArgumentError("Trajectory species does not match requested species"))
+        elseif p isa Tuple && length(p) >= 4
+            isapprox(p[1], sp.q/sp.m; rtol=1e-10) && isapprox(p[2], sp.m; rtol=1e-10) ||
+                throw(ArgumentError("Trajectory species does not match requested species"))
+        end
     end
     return sol
 end

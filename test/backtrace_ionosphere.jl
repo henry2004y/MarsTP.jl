@@ -19,7 +19,7 @@ const TP = MarsTP.TP
     @test BacktraceConfig().ionosphere_altitude_km == 400.
 end
 @testset "Thin sheet crossings and fixed inner boundary" begin
-    param = TP.prepare(_->SA[0.,0.,0.], _->SA[0.,0.,1e-9]; species=TP.SpeciesDict["O2+"])
+    param = TP.prepare(; E = _->SA[0.,0.,0.], B = _->SA[0.,0.,1e-9], species=TP.SpeciesDict["O2+"])
     source=(p,v)->(;g=7.,flux=8.)
     # The shell is crossed at t=-1, integration continues to the same 200 km
     # inner boundary for every chosen source altitude and both solvers.
@@ -71,7 +71,7 @@ end
     @test result.crossings == 0
 end
 @testset "Repeated oblique crossings and partial-step volume" begin
-    param=TP.prepare(_->SA[0.,0.,0.],_->SA[1e-9,0.,0.];species=TP.SpeciesDict["O2+"])
+    param=TP.prepare(; E = _->SA[0.,0.,0.], B = _->SA[1e-9,0.,0.], species=TP.SpeciesDict["O2+"])
     z=Rm+300e3
     speed=1e6
     cfg=BacktraceConfig(tspan=(0.,-4Rm/speed),dt=-.1)
@@ -85,7 +85,7 @@ end
 @testset "Synchronized sheet velocity with electric acceleration" begin
     sp=TP.SpeciesDict["O2+"]
     acceleration=100.
-    param=TP.prepare(_->SA[0.,0.,acceleration*sp.m/sp.q], _->SA[0.,0.,1e-9]; species=sp)
+    param=TP.prepare(; E = _->SA[0.,0.,acceleration*sp.m/sp.q], B = _->SA[0.,0.,1e-9], species=sp)
     radius=Rm+400e3
     exact_time=(-1000+sqrt(1000^2-2acceleration*1000))/acceleration
     errors=Float64[]

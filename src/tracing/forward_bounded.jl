@@ -29,12 +29,12 @@ using KernelAbstractions: @kernel, @index
     end
     query0 = norm(x) >= outer ? x*((outer-1e-6)/norm(x)) :
              norm(x) <= inner ? x*((inner+1e-6)/norm(x)) : x
-    half = flag == 1 ? TP.update_velocity_half(v,query0,dt,t,param,TP.Boris()) : v
+    half = flag == 1 ? BorisPushers.update_velocity_half(v,query0,dt,t,param,BorisPushers.Boris()) : v
     for step in 1:(flag == 1 ? nsteps : 0)
         query0 = norm(x) >= outer ? x*((outer-1e-6)/norm(x)) :
                  norm(x) <= inner ? x*((inner+1e-6)/norm(x)) : x
-        maxgyro = max(maxgyro,abs(param[1])*norm(param[4](query0,t))*dt)
-        next_half = TP.update_velocity(half,query0,dt,t,param,TP.Boris())
+        maxgyro = max(maxgyro,abs(param.q2m)*norm(param.B(query0,t))*dt)
+        next_half = BorisPushers.update_velocity(half,query0,dt,t,param,BorisPushers.Boris())
         trial = x + next_half*dt
         if !all(isfinite,trial) || !all(isfinite,next_half)
             flag = 5
@@ -55,7 +55,7 @@ using KernelAbstractions: @kernel, @index
         # the actual intersection; this guard is solely for floating point roundoff.
         query = event == 4 ? xn*((outer-1e-6)/norm(xn)) :
                 event == 2 ? xn*((inner+1e-6)/norm(xn)) : xn
-        vn = TP.update_velocity(next_half,query,(fraction-0.5)*dt,tn,param,TP.Boris())
+        vn = BorisPushers.update_velocity(next_half,query,(fraction-0.5)*dt,tn,param,BorisPushers.Boris())
         if !all(isfinite,vn)
             flag = 5
             break
@@ -151,9 +151,9 @@ function trace_forward_bounded(initial_states;
         throw(ArgumentError("Field mesh must cover both boundary spheres"))
     p = mhd_param(fields;species=config.species)
     # Upstream adaptation is reused, including spherical interpolation storage.
-    param = (p[1],p[2],TP.adapt_field_to_gpu(p[3],backend),TP.adapt_field_to_gpu(p[4],backend))
+    param = BorisPushers.adapt_params(p, backend)
     work_fields = work_itp === nothing ? nothing :
-        map(f->backend isa KA.CPU ? f : TP.adapt_field_to_gpu(f,backend),
+        map(f->backend isa KA.CPU ? f : BorisPushers.adapt_field_to_gpu(f,backend),
             (work_itp.total,work_itp.conv,work_itp.hall))
     sp = TP.SpeciesDict[config.species]
     initial = [states[i][j] for i in eachindex(states), j in 1:6]

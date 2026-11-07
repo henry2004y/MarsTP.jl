@@ -148,7 +148,7 @@ function _trace_sources(position, velocity, param, config, volume_source, ionosp
             x = previous[] + f*(r-previous[])
             hit_t = previous_t[] + f*step
             safe_x = x/norm(x)*clamp(norm(x),Rinner+1e-8,outer-1e-8)
-            v = TP.update_velocity(vhalf,safe_x,(f-0.5)*step,hit_t,p,TP.Boris())
+            v = BorisPushers.update_velocity(vhalf,safe_x,(f-0.5)*step,hit_t,p,BorisPushers.Boris())
             all(isfinite,v) || error("Invalid synchronized velocity at $safe_x")
             q = volume_source(safe_x,v)
             volume[] += 0.5*(last_q+q)*abs((f-last_fraction)*step)
@@ -191,10 +191,10 @@ function _trace_sources(position, velocity, param, config, volume_source, ionosp
     if config.solver == :boris
         steps = ceil(Int, abs((config.tspan[2]-config.tspan[1])/config.dt))
         dt = (config.tspan[2]-config.tspan[1])/steps
-        TP.solve(prob, TP.Boris(); dt, isoutside=boundary, maxiters=steps+1,
+        TP.solve(prob, BorisPushers.Boris(); dt, isoutside=boundary, maxiters=steps+1,
             save_start=false, save_end=false, save_everystep=false)
     else
-        TP.solve(prob, TP.AdaptiveBoris(; safety=config.safety); isoutside=boundary,
+        TP.solve(prob, BorisPushers.AdaptiveBoris(; safety=config.safety); isoutside=boundary,
             save_start=false, save_end=false, save_everystep=false)
     end
     if status[] == 1 && !isapprox(end_time[], config.tspan[2]; atol=1e-7, rtol=1e-10)

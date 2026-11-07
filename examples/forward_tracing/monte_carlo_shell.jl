@@ -2,6 +2,7 @@ module ShellMonteCarlo
 
 using MarsTP, StaticArrays, LinearAlgebra, Random, JLD2, ReadVTK, Dates, SHA, TOML, Printf
 const TP = MarsTP.TP
+const BP = MarsTP.BorisPushers
 const Vec = SVector{3,Float64}
 const Row = SVector{7,Float64}
 
@@ -116,12 +117,12 @@ function sphere_stop(a,b,inner,outer)
 end
 
 function trace_particle(x0,v0,param,c::Config; keep_history=true)
-    qm=param[1]; charge=TP.SpeciesDict["O2+"].q; mass=TP.SpeciesDict["O2+"].m
+    qm=param.q2m; charge=TP.SpeciesDict["O2+"].q; mass=TP.SpeciesDict["O2+"].m
     inner=Rm+c.absorption_altitude_km*1e3
     lo,hi=c.detector.-c.side/2,c.detector.+c.side/2
     x,v,t=x0,v0,0.0
-    E,B=Vec(param[3](x,t)),Vec(param[4](x,t))
-    half=TP.update_velocity_boris(v,E,B,-qm*c.dt/4)
+    E,B=Vec(param.E(x,t)),Vec(param.B(x,t))
+    half=BP.update_velocity_half(v,E,B,-qm*c.dt/4)
     history=Row[Row(t,x...,v...)]
     # residence: t0,t1, x0[3],x1[3],v0[3],v1[3]; events: t,face,direction,x[3],v[3]
     residence=Vector{Float64}[];events=Vector{Float64}[]
@@ -129,7 +130,7 @@ function trace_particle(x0,v0,param,c::Config; keep_history=true)
     nsteps=round(Int,c.tmax/c.dt)
     for step in 1:nsteps
         maxgyro=max(maxgyro,abs(qm)*norm(B)*c.dt)
-        half=TP.update_velocity_boris(half,E,B,qm*c.dt/2)
+        half=BP.update_velocity_half(half,E,B,qm*c.dt/2)
         trial=x+half*c.dt
         all(isfinite,trial) && all(isfinite,half) || error("Nonfinite particle state")
         f,flag=sphere_stop(x,trial,inner,Router)
@@ -141,8 +142,8 @@ function trace_particle(x0,v0,param,c::Config; keep_history=true)
         # One micrometre inward ONLY for field evaluation of an outer event;
         # saved trajectory endpoint remains on the exact geometric sphere.
         query=flag==4 ? xn*((Router-1e-6)/norm(xn)) : xn
-        En,Bn=Vec(param[3](query,tn)),Vec(param[4](query,tn))
-        vn=TP.update_velocity_boris(half,En,Bn,qm*(f-0.5)*c.dt/2)
+        En,Bn=Vec(param.E(query,tn)),Vec(param.B(query,tn))
+        vn=BP.update_velocity_half(half,En,Bn,qm*(f-0.5)*c.dt/2)
         all(isfinite,vn) && all(isfinite,En) && all(isfinite,Bn) ||
             error("Nonfinite fields/velocity at t=$tn, r=$(norm(xn)), flag=$flag, query_radius=$(norm(query)), E=$En, B=$Bn")
         hit=cube_segment(x,xn,lo,hi)
@@ -151,7 +152,7 @@ function trace_particle(x0,v0,param,c::Config; keep_history=true)
             # Synchronize velocity at clipped detector endpoints; no staggered velocities saved.
             function at(s)
                 xx=x+s*(xn-x);tt=t+s*(tn-t)
-                vv=TP.update_velocity(half,xx,(s*f-0.5)*c.dt,tt,param,TP.Boris())
+                vv=BP.update_velocity(half,xx,(s*f-0.5)*c.dt,tt,param,BP.Boris())
                 return xx,vv,tt
             end
             xa,va,ta=at(s0);xb,vb,tb=at(s1)

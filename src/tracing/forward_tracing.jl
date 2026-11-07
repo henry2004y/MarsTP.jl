@@ -50,7 +50,8 @@ function trace_forward(initial_states; config::ForwardTraceConfig = ForwardTrace
             isfinite(radius) && (radius < lo || radius > hi)
         end
     end
-    solver = config.solver == :boris ? TP.Boris() : TP.AdaptiveBoris(; safety = config.safety)
+    solver = config.solver == :boris ? BorisPushers.Boris() : BorisPushers.AdaptiveBoris(; safety = config.safety)
+    boris_ext = Base.get_extension(TP, :TestParticleBorisPushersExt)
     sols = if isempty(states)
         []
     elseif backend === nothing
@@ -75,8 +76,8 @@ function trace_forward(initial_states; config::ForwardTraceConfig = ForwardTrace
             callback = TP.DiscreteCallback(condition,stop;save_positions=(false,true))
             # TraceProblem.solve supplies its own callback keyword; use the
             # same upstream ODE adapter directly so our controlled rollback runs.
-            ode_prob = TP._boris_problem(prob)
-            dt = config.solver == :boris ? config.dt : TP._boris_initial_dt(prob,solver)
+            ode_prob = boris_ext._boris_problem(prob)
+            dt = config.solver == :boris ? config.dt : boris_ext._boris_initial_dt(prob,solver)
             TP.solve(ode_prob,solver;dt,saveat,callback,dense=false,
                 save_everystep=isempty(saveat))
         end
@@ -100,7 +101,7 @@ function trace_forward(initial_states; config::ForwardTraceConfig = ForwardTrace
             accepted[i]
         else
             state = original_states[i]
-            prob = TP._boris_problem(TP.TraceProblem(state,config.tspan,param))
+            prob = boris_ext._boris_problem(TP.TraceProblem(state,config.tspan,param))
             t = [config.tspan[1]]
             u = [state]
             TP.build_solution(prob,solver,t,u;interp=TP.LinearInterpolation(t,u),

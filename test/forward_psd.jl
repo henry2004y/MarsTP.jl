@@ -63,14 +63,15 @@ end
 
 @testset "Boris saved velocity and PSD convergence" begin
     TP = MarsTP.TP
+    BP = MarsTP.BorisPushers
     sp = TP.SpeciesDict["O2+"]
     # Constant acceleration parallel to B: v_x=t and x=t^2/2 analytically.
-    param = TP.prepare(_->SA[sp.m/sp.q,0.,0.], _->SA[1e-7,0.,0.];species=sp)
+    param = TP.prepare(; E = _->SA[sp.m/sp.q,0.,0.], B = _->SA[1e-7,0.,0.], species=sp)
     prob = TP.TraceProblem(SA[0.,0.,0.,0.,0.,0.], (0.,2.), param)
     kw = (;detector_m=[0.,0.,0.],side_m=2.,vlim=3.,vgrid=6,rate_weights_s=[8.])
     errors = Float64[]
     for dt in (.2,.1,.05)
-        sol = TP.solve(prob,TP.Boris();dt)
+        sol = TP.solve(prob,BP.Boris();dt)
         traj = sol
         @test all(isapprox(u[4],t;atol=1e-12) for (u,t) in zip(traj.u,traj.t))
         p = forward_psd([sol];kw...)
@@ -79,7 +80,7 @@ end
         @test_throws ArgumentError forward_psd(sol;kw...,species="H+")
     end
     @test errors[3] < errors[2] < errors[1]
-    sol = TP.solve(prob,TP.AdaptiveBoris(;safety=.001))
+    sol = TP.solve(prob,BP.AdaptiveBoris(;safety=.001))
     @test all(isapprox(u[4],t;atol=1e-10) for (u,t) in zip(sol.u,sol.t))
     @test forward_psd(sol;kw...).density_total_m3 ≈ sqrt(2) rtol=1e-3
 end
