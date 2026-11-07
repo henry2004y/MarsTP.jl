@@ -37,6 +37,10 @@ function main()
             status[] = "time_limit"
             sol=TP.solve(prob,BP.Boris();dt,isoutside=outside,
                 maxiters=ceil(Int,20000/dt)+1)
+            if length(sol.t) >= 3 && sol.t[end] == sol.t[end-1] && sol.u[end] == sol.u[end-2]
+                resize!(sol.t, length(sol.t) - 2)
+                resize!(sol.u, length(sol.u) - 2)
+            end
             p=Electric_field_work_profile(sol,itp)
             actual_dt = dt
             abs(p.summary.energy_residual_eV)/max(abs(p.summary.delta_kinetic_eV),1.) <= 1e-3 && break

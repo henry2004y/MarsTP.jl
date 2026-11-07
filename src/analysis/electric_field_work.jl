@@ -58,6 +58,13 @@ function _work_trajectory(sol)
     length(traj.t) == length(traj.u) && !isempty(traj.t) ||
         throw(ArgumentError("Trajectory must have matching nonempty time and state arrays"))
     all(isfinite, traj.t) || throw(ArgumentError("Nonfinite trajectory times"))
+    if length(traj.t) >= 3 && traj.t[end] == traj.t[end - 1]
+        if traj.u[end] == traj.u[end - 2]
+            traj = (; t = @view(traj.t[1:(end - 2)]), u = @view(traj.u[1:(end - 2)]))
+        elseif traj.u[end] == traj.u[end - 1]
+            traj = (; t = @view(traj.t[1:(end - 1)]), u = @view(traj.u[1:(end - 1)]))
+        end
+    end
     dt = diff(traj.t)
     (all(>(0), dt) || all(<(0), dt)) ||
         throw(ArgumentError("Trajectory times must be strictly monotonic"))
@@ -256,14 +263,20 @@ midpoint quadrature, returning cumulative work [eV] and instantaneous power [eV/
 for the parallel (`E_parallel`), Fermi (curvature drift), grad-B, local betatron,
 and combined betatron (`grad + betatron_local`) channels.
 """
+function adiabatic_work_profile(sol, fields::MHDFields; species = "O2+", relativistic::Bool = false)
+    return adiabatic_work_profile(sol, mhd_param(fields; species); relativistic)
+end
+
 function adiabatic_work_profile(sol, param; relativistic::Bool = false)
     traj = _work_trajectory(sol)
     n = length(traj.t)
     rates_eV_s = zeros(n, 4)
     work_eV = zeros(n, 4)
+    kappa = zeros(n)
     for i in 1:n
         u = SVector{6, Float64}(traj.u[i][1:6])
         r_W = TP.get_work_rates(u, param, traj.t[i]; relativistic)
+        kappa[i] = TP.get_adiabaticity(u, param, traj.t[i])
         for j in 1:4
             rates_eV_s[i, j] = r_W[j] / TP.eV
         end
@@ -300,6 +313,7 @@ function adiabatic_work_profile(sol, param; relativistic::Bool = false)
         betatron_local_eV,
         betatron_eV,
         total_adiabatic_eV,
+        kappa,
         power_parallel_eV_s = rates_eV_s[:, 1],
         power_fermi_eV_s = rates_eV_s[:, 2],
         power_grad_eV_s = rates_eV_s[:, 3],

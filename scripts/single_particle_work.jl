@@ -25,6 +25,10 @@ function main()
         prob = TP.TraceProblem(vcat(p0, SA[0.,0.,0.]), (0.,20000.), param)
         sol = TP.solve(prob, BP.Boris(); dt, isoutside=outside,
             maxiters=ceil(Int,20000/dt)+1)
+        if length(sol.t) >= 3 && sol.t[end] == sol.t[end-1] && sol.u[end] == sol.u[end-2]
+            resize!(sol.t, length(sol.t) - 2)
+            resize!(sol.u, length(sol.u) - 2)
+        end
         work = field_work(sol, itps)
         kinetic = u -> 0.5species.m * sum(abs2, u[4:6]) / TP.eV
         delta = kinetic(sol.u[end]) - kinetic(sol.u[1])

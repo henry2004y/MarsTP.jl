@@ -79,6 +79,16 @@ end
 Refine a coarse `BacktraceConfig` velocity window around the populated region of `f3d`
 using `TestParticle.refine_vdf_window`.
 """
+function refine_backtrace_config(res::NamedTuple; kwargs...)
+    f3d = if hasproperty(res, :psd3d) && res.psd3d !== nothing
+        res.psd3d
+    else
+        ny = length(res.vy_km)
+        repeat(reshape(res.f2d_xz, size(res.f2d_xz, 1), 1, size(res.f2d_xz, 2)), 1, ny, 1)
+    end
+    return refine_backtrace_config(res.config, f3d; kwargs...)
+end
+
 function refine_backtrace_config(
         config::BacktraceConfig,
         f3d::AbstractArray{<:Real, 3};
