@@ -284,8 +284,13 @@ function plot_fig2(
         shading = "auto", rasterized = true,
     )
     ax_d.set_aspect("equal")
-    ax_d.set_xticks([-6, -4, -2, 0, 2])
-    ax_d.set_yticks([-6, -4, -2, 0, 2, 4])
+    if span <= 8.0e3
+        ax_d.set_xticks([-6, -4, -2, 0, 2])
+        ax_d.set_yticks([-6, -4, -2, 0, 2, 4])
+    else
+        ax_d.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
+        ax_d.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
+    end
     ax_d.tick_params(axis = "both", which = "major", labelsize = 19, length = 7.5, width = 1.4)
     ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 21)
     ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 21)
@@ -314,8 +319,13 @@ function plot_fig2(
     ax_e.set_xlim(extrema(vx_grid) ./ 1.0e3)
     ax_e.set_ylim(extrema(vz_grid) ./ 1.0e3)
     ax_e.set_aspect("equal")
-    ax_e.set_xticks([-6, -4, -2, 0, 2])
-    ax_e.set_yticks([-6, -4, -2, 0, 2, 4])
+    if span <= 8.0e3
+        ax_e.set_xticks([-6, -4, -2, 0, 2])
+        ax_e.set_yticks([-6, -4, -2, 0, 2, 4])
+    else
+        ax_e.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
+        ax_e.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
+    end
     ax_e.tick_params(axis = "both", which = "major", labelsize = 19, length = 7.5, width = 1.4)
     ax_e.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 21)
     ax_e.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 21)
