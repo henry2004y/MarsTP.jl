@@ -77,11 +77,11 @@ function plot_fig6(
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 14
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13
+    PyPlot.matplotlib.rcParams["font.size"] = 16
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 15.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 15.5
 
-    fig, axes = plt.subplots(4, 2; figsize = (13.2, 12.4), layout = "constrained")
+    fig, axes = plt.subplots(4, 2; figsize = (13.4, 12.6), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.03, wspace = 0.03, hspace = 0.03)
 
     ax_a = axes[1, 1]
@@ -99,7 +99,7 @@ function plot_fig6(
     ax_a.plot([-1.0, 1.0], [d.tail_z_Rm, d.tail_z_Rm]; color = "#d6192b", lw = 2.2, zorder = 8)
     ax_a.text(
         0.0, d.tail_z_Rm + 0.14, "Virtual trajectory";
-        color = "#d6192b", fontsize = 13.5, ha = "center", va = "bottom",
+        color = "#d6192b", fontsize = 15.5, ha = "center", va = "bottom",
         bbox = Dict("boxstyle" => "square,pad=0.12", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.78),
         zorder = 9,
     )
@@ -108,10 +108,10 @@ function plot_fig6(
     ax_a.set_aspect("equal")
     ax_a.set_xticks(-2:1:2)
     ax_a.set_yticks(0.0:0.5:2.0)
-    ax_a.tick_params(labelsize = 13)
-    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 15)
-    ax_a.set_title("\$X_{MSE} = −2\\,R_M\$"; fontsize = 16, pad = 7)
-    ax_a.text(0.02, 0.93, "a"; transform = ax_a.transAxes, fontsize = 17.5, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+    ax_a.tick_params(labelsize = 15.5)
+    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 17.5)
+    ax_a.set_title("\$X_{MSE} = −2\\,R_M\$"; fontsize = 18.5, pad = 7)
+    ax_a.text(0.02, 0.93, "a"; transform = ax_a.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left", zorder = 10)
 
     # (b) Magnetic field (nT)
     ax_b.axhline(0.0; color = "0.65", lw = 0.8)
@@ -120,10 +120,10 @@ function plot_fig6(
     ax_b.set_xlim(-1.0, 1.0)
     ax_b.set_ylim(-15.0, 17.0)
     ax_b.set_xticks(-1.0:0.5:1.0)
-    ax_b.tick_params(labelsize = 13)
-    ax_b.set_ylabel("Magnetic field (nT)"; fontsize = 15)
-    ax_b.legend(loc = "center right", frameon = false, fontsize = 13.5)
-    ax_b.text(0.03, 0.93, "b"; transform = ax_b.transAxes, fontsize = 17.5, fontweight = "bold", va = "top", ha = "left")
+    ax_b.tick_params(labelsize = 15.5)
+    ax_b.set_ylabel("Magnetic field (nT)"; fontsize = 17.5)
+    ax_b.legend(loc = "center right", frameon = false, fontsize = 16)
+    ax_b.text(0.03, 0.93, "b"; transform = ax_b.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
 
     # (c) PSD vs Y_MSE and Energy with horizontal inset colorbar
     psd_plot = copy(permutedims(d.psd))
@@ -134,15 +134,15 @@ function plot_fig6(
     ax_c.set_xlim(-1.0, 1.0)
     ax_c.set_ylim(1.0e1, 1.0e4)
     ax_c.set_xticks(-1.0:0.5:1.0)
-    ax_c.tick_params(labelbottom = false, labelsize = 13)
-    ax_c.set_ylabel("Energy (eV)"; fontsize = 15)
-    ax_c.text(0.03, 0.93, "c"; transform = ax_c.transAxes, fontsize = 17.5, fontweight = "bold", va = "top", ha = "left")
+    ax_c.tick_params(labelbottom = false, labelsize = 15.5)
+    ax_c.set_ylabel("Energy (eV)"; fontsize = 17.5)
+    ax_c.text(0.03, 0.93, "c"; transform = ax_c.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
 
-    cax_c = ax_c.inset_axes([0.24, 0.83, 0.70, 0.062])
+    cax_c = ax_c.inset_axes([0.22, 0.82, 0.72, 0.065])
     cb_c = fig.colorbar(im_c; cax = cax_c, orientation = "horizontal")
     cb_c.ax.xaxis.set_ticks_position("bottom")
-    cb_c.ax.tick_params(labelsize = 11.5, pad = 1.5)
-    cb_c.ax.set_title("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 12, pad = 3.0)
+    cb_c.ax.tick_params(labelsize = 13, pad = 1.5)
+    cb_c.ax.set_title("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 14, pad = 3.0)
 
     # (d) Bulk velocity (km/s)
     ax_d.axhline(0.0; color = "0.65", lw = 0.8)
@@ -161,10 +161,10 @@ function plot_fig6(
     ax_d.set_xlim(-1.0, 1.0)
     ax_d.set_ylim(-42.0, 52.0)
     ax_d.set_xticks(-1.0:0.5:1.0)
-    ax_d.tick_params(labelbottom = false, labelsize = 13)
-    ax_d.set_ylabel("Bulk velocity (km s\$^{-1}\$)"; fontsize = 15)
-    ax_d.legend(loc = "center left", bbox_to_anchor = (1.01, 0.5), frameon = false, fontsize = 13.5)
-    ax_d.text(0.03, 0.93, "d"; transform = ax_d.transAxes, fontsize = 17.5, fontweight = "bold", va = "top", ha = "left")
+    ax_d.tick_params(labelbottom = false, labelsize = 15.5)
+    ax_d.set_ylabel("Bulk velocity (km s\$^{-1}\$)"; fontsize = 17.5)
+    ax_d.legend(loc = "center left", bbox_to_anchor = (1.01, 0.5), frameon = false, fontsize = 16)
+    ax_d.text(0.03, 0.93, "d"; transform = ax_d.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
 
     # (e)-(h) Mean cumulative work 2x2 grid on linear [-300, 300] eV bwr scale
     work_panels = (
@@ -180,19 +180,19 @@ function plot_fig6(
         ax.set_xlim(-1.0, 1.0)
         ax.set_ylim(1.0e1, 1.0e4)
         ax.set_xticks(-1.0:0.5:1.0)
-        ax.tick_params(labelsize = 13)
+        ax.tick_params(labelsize = 15.5)
         if show_x
-            ax.set_xlabel("\$Y_{MSE}\$ (\$R_M\$)"; fontsize = 15.5)
+            ax.set_xlabel("\$Y_{MSE}\$ (\$R_M\$)"; fontsize = 18)
         else
             ax.tick_params(labelbottom = false)
         end
         if show_y
-            ax.set_ylabel("Energy (eV)"; fontsize = 15)
+            ax.set_ylabel("Energy (eV)"; fontsize = 17.5)
         else
             ax.tick_params(labelleft = false)
         end
-        ax.text(0.03, 0.93, tag; transform = ax.transAxes, fontsize = 17.5, fontweight = "bold", va = "top", ha = "left")
-        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, fontsize = 17.5, va = "top", ha = "right")
+        ax.text(0.03, 0.93, tag; transform = ax.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
+        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, fontsize = 20, va = "top", ha = "right")
     end
 
     fig.canvas.draw()
@@ -203,8 +203,8 @@ function plot_fig6(
     cbar_w_ax = ax_h.inset_axes([1.035, 0.0, 0.042, y_top_rel])
     cb_w = fig.colorbar(im_w; cax = cbar_w_ax)
     cb_w.set_ticks(-300:100:300)
-    cb_w.ax.tick_params(labelsize = 13.5)
-    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 15.5)
+    cb_w.ax.tick_params(labelsize = 15.5)
+    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 18)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")

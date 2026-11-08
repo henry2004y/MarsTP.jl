@@ -121,12 +121,12 @@ function plot_fig1(
     end
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 14
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13.5
+    PyPlot.matplotlib.rcParams["font.size"] = 16.5
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 16
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 16
 
-    fig, axes = plt.subplots(2, 2; figsize = (13.6, 12.2), layout = "constrained")
-    fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.04, hspace = 0.04)
+    fig, axes = plt.subplots(2, 2; figsize = (12.0, 12.2), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.04, wspace = 0.03, hspace = 0.04)
 
     panels = (
         (axes[1, 1], b_mag, bx_u, by_u, "a", "Magnetic field, XY", "Y (Rm)", L"$|\mathbf{B}|$ (nT)", (1.0e-1, 4.5e1)),
@@ -153,21 +153,21 @@ function plot_fig1(
         ax.set_aspect("equal")
         ax.set_xticks([-4, -2, 0, 2])
         ax.set_yticks([-4, -2, 0, 2, 4])
-        ax.tick_params(labelsize = 13.5)
-        ax.set_xlabel("X (Rm)"; fontsize = 16)
-        ax.set_ylabel(ylabel_str; fontsize = 16)
-        ax.set_title(title_str; fontsize = 17.5, pad = 9)
+        ax.tick_params(labelsize = 16)
+        ax.set_xlabel("X (Rm)"; fontsize = 18.5)
+        ax.set_ylabel(ylabel_str; fontsize = 18.5)
+        ax.set_title(title_str; fontsize = 19.5, pad = 9)
         ax.text(
             0.03, 0.95, tag;
-            transform = ax.transAxes, fontsize = 18, fontweight = "bold",
+            transform = ax.transAxes, fontsize = 21, fontweight = "bold",
             va = "top", ha = "left",
             bbox = Dict("boxstyle" => "square,pad=0.2", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.9),
             zorder = 10,
         )
         cax = ax.inset_axes([1.035, 0.0, 0.048, 1.0])
         cb = fig.colorbar(im; cax = cax)
-        cb.ax.tick_params(labelsize = 13)
-        cb.set_label(cbar_lbl; fontsize = 15.5)
+        cb.ax.tick_params(labelsize = 15.5)
+        cb.set_label(cbar_lbl; fontsize = 18)
     end
 
     mkpath(dirname(abspath(out_png)))

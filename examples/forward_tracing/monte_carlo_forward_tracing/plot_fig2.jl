@@ -198,11 +198,11 @@ function plot_fig2(
     end
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 13.5
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13
+    PyPlot.matplotlib.rcParams["font.size"] = 16
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 15.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 15.5
 
-    fig = plt.figure(figsize = (13.8, 11.2), layout = "constrained")
+    fig = plt.figure(figsize = (14.2, 11.4), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.05, hspace = 0.04)
     gs_main = fig.add_gridspec(1, 2; width_ratios = [1.05, 1.0])
     gs_left = gs_main[1, 1].subgridspec(3, 1)
@@ -220,18 +220,18 @@ function plot_fig2(
         cmap = "turbo", norm = matplotlib.colors.LogNorm(vmin = 1.0e6, vmax = 1.0e9),
         shading = "auto", rasterized = true,
     )
-    ax_a.scatter([0.0], [0.0]; marker = "*", s = 210, facecolor = "white", edgecolor = "black", lw = 1.1, zorder = 6, clip_on = false)
+    ax_a.scatter([0.0], [0.0]; marker = "*", s = 230, facecolor = "white", edgecolor = "black", lw = 1.1, zorder = 6, clip_on = false)
     ax_a.text(
         10.0, 22.0, "Subsolar";
-        fontsize = 13, va = "center", ha = "left",
+        fontsize = 15.5, va = "center", ha = "left",
         bbox = Dict("boxstyle" => "square,pad=0.2", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.9),
         zorder = 6,
     )
-    ax_a.set_title("(a) O\$_2^+\$ density at $(Int(round(altitude_km))) km"; fontsize = 15.5, pad = 7)
+    ax_a.set_title("(a) O\$_2^+\$ density at $(Int(round(altitude_km))) km"; fontsize = 18, pad = 7)
     cax_a = ax_a.inset_axes([1.03, 0.0, 0.038, 1.0])
     cb_a = fig.colorbar(im_a; cax = cax_a)
-    cb_a.ax.tick_params(labelsize = 12.5)
-    cb_a.set_label("Number density (m\$^{-3}\$)"; fontsize = 13.5)
+    cb_a.ax.tick_params(labelsize = 15)
+    cb_a.set_label("Number density (m\$^{-3}\$)"; fontsize = 16.5)
 
     # (b) Speed
     im_b = ax_b.pcolormesh(
@@ -239,11 +239,11 @@ function plot_fig2(
         cmap = "turbo", vmin = 0.0, vmax = 30.0,
         shading = "auto", rasterized = true,
     )
-    ax_b.set_title("(b) O\$_2^+\$ speed at $(Int(round(altitude_km))) km"; fontsize = 15.5, pad = 7)
+    ax_b.set_title("(b) O\$_2^+\$ speed at $(Int(round(altitude_km))) km"; fontsize = 18, pad = 7)
     cax_b = ax_b.inset_axes([1.03, 0.0, 0.038, 1.0])
     cb_b = fig.colorbar(im_b; cax = cax_b)
-    cb_b.ax.tick_params(labelsize = 12.5)
-    cb_b.set_label("Speed (km s\$^{-1}\$)"; fontsize = 13.5)
+    cb_b.ax.tick_params(labelsize = 15)
+    cb_b.set_label("Speed (km s\$^{-1}\$)"; fontsize = 16.5)
 
     # (c) Temperature
     im_c = ax_c.pcolormesh(
@@ -251,20 +251,20 @@ function plot_fig2(
         cmap = "turbo", norm = matplotlib.colors.LogNorm(vmin = 1.0e2, vmax = 1.0e7),
         shading = "auto", rasterized = true,
     )
-    ax_c.set_title("(c) O\$_2^+\$ temperature at $(Int(round(altitude_km))) km"; fontsize = 15.5, pad = 7)
-    ax_c.set_xlabel("Longitude (°)"; fontsize = 14.5)
+    ax_c.set_title("(c) O\$_2^+\$ temperature at $(Int(round(altitude_km))) km"; fontsize = 18, pad = 7)
+    ax_c.set_xlabel("Longitude (°)"; fontsize = 17.5)
     cax_c = ax_c.inset_axes([1.03, 0.0, 0.038, 1.0])
     cb_c = fig.colorbar(im_c; cax = cax_c)
-    cb_c.ax.tick_params(labelsize = 12.5)
-    cb_c.set_label("Temperature (K)"; fontsize = 13.5)
+    cb_c.ax.tick_params(labelsize = 15)
+    cb_c.set_label("Temperature (K)"; fontsize = 16.5)
 
     for ax in (ax_a, ax_b, ax_c)
         ax.set_xlim(0.0, 360.0)
         ax.set_ylim(-90.0, 90.0)
         ax.set_xticks(0:60:360)
         ax.set_yticks(-90:30:90)
-        ax.tick_params(labelsize = 13)
-        ax.set_ylabel("Latitude (°)"; fontsize = 14.5)
+        ax.tick_params(labelsize = 15.5)
+        ax.set_ylabel("Latitude (°)"; fontsize = 17.5)
     end
 
     # (d) Local O2+ Maxwellian
@@ -274,10 +274,10 @@ function plot_fig2(
         shading = "auto", rasterized = true,
     )
     ax_d.set_aspect("equal")
-    ax_d.tick_params(labelsize = 13)
-    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 14.5)
-    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 14.5)
-    ax_d.set_title("(d) Local O\$_2^+\$ Maxwellian\nLongitude = $(Int(round(sample_lon_deg)))°, Latitude = $(Int(round(sample_lat_deg)))°"; fontsize = 15.5, pad = 8)
+    ax_d.tick_params(labelsize = 15.5)
+    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 17.5)
+    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 17.5)
+    ax_d.set_title("(d) Local O\$_2^+\$ Maxwellian\nLongitude = $(Int(round(sample_lon_deg)))°, Latitude = $(Int(round(sample_lat_deg)))°"; fontsize = 18, pad = 8)
     n_exp = floor(Int, log10(p0.n))
     n_mant = p0.n / 10.0^n_exp
     t_exp = floor(Int, log10(p0.Ti))
@@ -286,11 +286,11 @@ function plot_fig2(
         "\$n = %.2f \\times 10^{%d}\$ m\$^{-3}\$\n\$V = (%.2f, %.4f, %.2f)\$ km/s\n\$T = %.2f \\times 10^{%d}\$ K",
         n_mant, n_exp, ux0 / 1.0e3, uy0 / 1.0e3, uz0 / 1.0e3, t_mant, t_exp,
     )
-    ax_d.text(0.04, 0.05, info_txt; transform = ax_d.transAxes, color = "white", fontsize = 12.5, va = "bottom", ha = "left")
+    ax_d.text(0.04, 0.05, info_txt; transform = ax_d.transAxes, color = "white", fontsize = 15, va = "bottom", ha = "left")
     cax_d = ax_d.inset_axes([1.035, 0.0, 0.045, 1.0])
     cb_d = fig.colorbar(im_d; cax = cax_d)
-    cb_d.ax.tick_params(labelsize = 12.5)
-    cb_d.set_label("\$f_{xz}\$ (s\$^2\$ m\$^{-5}\$)"; fontsize = 13.5)
+    cb_d.ax.tick_params(labelsize = 15)
+    cb_d.set_label("\$f_{xz}\$ (s\$^2\$ m\$^{-5}\$)"; fontsize = 16.5)
 
     # (e) Particle-rate weights
     ord = sortperm(w_i)
@@ -302,14 +302,14 @@ function plot_fig2(
     ax_e.set_xlim(extrema(vx_grid) ./ 1.0e3)
     ax_e.set_ylim(extrema(vz_grid) ./ 1.0e3)
     ax_e.set_aspect("equal")
-    ax_e.tick_params(labelsize = 13)
-    ax_e.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 14.5)
-    ax_e.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 14.5)
-    ax_e.set_title("(e) Particle-rate weights \$w_i\$"; fontsize = 15.5, pad = 8)
+    ax_e.tick_params(labelsize = 15.5)
+    ax_e.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 17.5)
+    ax_e.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 17.5)
+    ax_e.set_title("(e) Particle-rate weights \$w_i\$"; fontsize = 18, pad = 8)
     cax_e = ax_e.inset_axes([1.035, 0.0, 0.045, 1.0])
     cb_e = fig.colorbar(sc_e; cax = cax_e)
-    cb_e.ax.tick_params(labelsize = 12.5)
-    cb_e.set_label("\$w_i\$ (s\$^{-1}\$)"; fontsize = 13.5)
+    cb_e.ax.tick_params(labelsize = 15)
+    cb_e.set_label("\$w_i\$ (s\$^{-1}\$)"; fontsize = 16.5)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")

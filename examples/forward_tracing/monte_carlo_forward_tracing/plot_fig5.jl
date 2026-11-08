@@ -39,7 +39,7 @@ end
 
 function _draw_circled_number!(ax, x::Real, y::Real, num::Int; transform = nothing, zorder::Int = 10)
     kw = Dict{Symbol, Any}(
-        :fontsize => 14,
+        :fontsize => 15.5,
         :fontweight => "bold",
         :ha => "center",
         :va => "center",
@@ -78,11 +78,11 @@ function plot_fig5(
     qe = MarsTP.TP.qᵢ
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 16
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 15
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 15
+    PyPlot.matplotlib.rcParams["font.size"] = 17.5
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 16.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 16.5
 
-    fig, axes = plt.subplots(3, 3; figsize = (15.5, 11.8), layout = "constrained")
+    fig, axes = plt.subplots(3, 3; figsize = (15.8, 12.0), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.03, wspace = 0.03, hspace = 0.03)
 
     row_configs = (
@@ -127,16 +127,16 @@ function plot_fig5(
             for (lbl, col) in (("\$E_C\$", _COL_EC), ("\$E_H\$", _COL_EH), ("\$E_A\$", _COL_EA))
                 ax_tr.plot(Float64[], Float64[]; color = col, lw = 2.4, label = lbl)
             end
-            ax_tr.legend(loc = "center left", bbox_to_anchor = (0.02, 0.56), frameon = false, fontsize = 15.5)
+            ax_tr.legend(loc = "center left", bbox_to_anchor = (0.02, 0.56), frameon = false, fontsize = 17)
         end
         ax_tr.set_xlim(xlim_tr)
         ax_tr.set_ylim(0.5, 3.0)
         ax_tr.set_aspect("equal")
-        ax_tr.tick_params(labelsize = 15)
-        ax_tr.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 17.5)
-        row == 3 && ax_tr.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 17.5)
-        ax_tr.text(0.03, 0.94, tag_tr; transform = ax_tr.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
-        ax_tr.text(0.96, 0.94, "$(ang_deg)°"; transform = ax_tr.transAxes, fontsize = 18, fontweight = "bold", va = "top", ha = "right")
+        ax_tr.tick_params(labelsize = 16.5)
+        ax_tr.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 19)
+        row == 3 && ax_tr.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 19)
+        ax_tr.text(0.03, 0.94, tag_tr; transform = ax_tr.transAxes, fontsize = 22, fontweight = "bold", va = "top", ha = "left")
+        ax_tr.text(0.96, 0.94, "$(ang_deg)°"; transform = ax_tr.transAxes, fontsize = 19.5, fontweight = "bold", va = "top", ha = "right")
 
         # Column 2: Instantaneous power qE·v (W) on symlog scale
         ax_p = axes[row, 2]
@@ -153,12 +153,12 @@ function plot_fig5(
             _draw_circled_number!(ax_p, tm, 0.12, m_num; transform = ax_p.get_xaxis_transform(), zorder = 8)
         end
         if row == 1
-            ax_p.legend(loc = "upper center", ncol = 2, frameon = false, fontsize = 15, columnspacing = 1.0, handletextpad = 0.4)
+            ax_p.legend(loc = "upper center", ncol = 2, frameon = false, fontsize = 16.5, columnspacing = 0.9, handletextpad = 0.4)
         end
-        ax_p.tick_params(labelsize = 15)
-        ax_p.set_ylabel("\$q\\mathbf{E} \\cdot \\mathbf{v}\$ (W)"; fontsize = 17.5)
-        row == 3 && ax_p.set_xlabel("Time since release (s)"; fontsize = 17.5)
-        ax_p.text(0.03, 0.94, tag_p; transform = ax_p.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
+        ax_p.tick_params(labelsize = 16.5)
+        ax_p.set_ylabel("\$q\\mathbf{E} \\cdot \\mathbf{v}\$ (W)"; fontsize = 19)
+        row == 3 && ax_p.set_xlabel("Time since release (s)"; fontsize = 19)
+        ax_p.text(0.03, 0.94, tag_p; transform = ax_p.transAxes, fontsize = 22, fontweight = "bold", va = "top", ha = "left")
 
         # Column 3: Cumulative work ε (eV) on symlog scale + right-side text summary
         ax_w = axes[row, 3]
@@ -169,20 +169,20 @@ function plot_fig5(
         ax_w.plot(t_rel, prof.total_eV; color = "black", ls = "--", lw = 1.9)
         ax_w.set_yscale("symlog"; linthresh = 1.0, linscale = 0.6)
         ax_w.set_xlim(0.0, t_end * 1.04)
-        ax_w.tick_params(labelsize = 15)
-        ax_w.set_ylabel("\$\\varepsilon\$ (eV)"; fontsize = 17.5)
-        row == 3 && ax_w.set_xlabel("Time since release (s)"; fontsize = 17.5)
-        ax_w.text(0.03, 0.94, tag_w; transform = ax_w.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
+        ax_w.tick_params(labelsize = 16.5)
+        ax_w.set_ylabel("\$\\varepsilon\$ (eV)"; fontsize = 19)
+        row == 3 && ax_w.set_xlabel("Time since release (s)"; fontsize = 19)
+        ax_w.text(0.03, 0.94, tag_w; transform = ax_w.transAxes, fontsize = 22, fontweight = "bold", va = "top", ha = "left")
 
         wc_f = prof.conv_eV[end]
         wh_f = prof.hall_eV[end]
         wa_f = prof.gradpe_eV[end]
         wt_f = prof.total_eV[end]
         denom = abs(wt_f) > 1.0e-9 ? wt_f : 1.0
-        ax_w.text(1.04, 0.84, @sprintf("\$\\varepsilon_C = %.0f\$ eV\n(%.1f%%)", wc_f, 100.0 * wc_f / denom); transform = ax_w.transAxes, color = _COL_EC, fontsize = 15.5, va = "center", ha = "left", linespacing = 1.15)
-        ax_w.text(1.04, 0.57, @sprintf("\$\\varepsilon_H = %.0f\$ eV\n(%.1f%%)", wh_f, 100.0 * wh_f / denom); transform = ax_w.transAxes, color = _COL_EH, fontsize = 15.5, va = "center", ha = "left", linespacing = 1.15)
-        ax_w.text(1.04, 0.30, @sprintf("\$\\varepsilon_A = %.0f\$ eV\n(%.1f%%)", wa_f, 100.0 * wa_f / denom); transform = ax_w.transAxes, color = _COL_EA, fontsize = 15.5, va = "center", ha = "left", linespacing = 1.15)
-        ax_w.text(1.04, 0.07, @sprintf("\$\\varepsilon_T = %.0f\$ eV", wt_f); transform = ax_w.transAxes, color = "black", fontsize = 15.5, va = "center", ha = "left")
+        ax_w.text(1.04, 0.84, @sprintf("\$\\varepsilon_C = %.0f\$ eV\n(%.1f%%)", wc_f, 100.0 * wc_f / denom); transform = ax_w.transAxes, color = _COL_EC, fontsize = 17, va = "center", ha = "left", linespacing = 1.15)
+        ax_w.text(1.04, 0.57, @sprintf("\$\\varepsilon_H = %.0f\$ eV\n(%.1f%%)", wh_f, 100.0 * wh_f / denom); transform = ax_w.transAxes, color = _COL_EH, fontsize = 17, va = "center", ha = "left", linespacing = 1.15)
+        ax_w.text(1.04, 0.30, @sprintf("\$\\varepsilon_A = %.0f\$ eV\n(%.1f%%)", wa_f, 100.0 * wa_f / denom); transform = ax_w.transAxes, color = _COL_EA, fontsize = 17, va = "center", ha = "left", linespacing = 1.15)
+        ax_w.text(1.04, 0.07, @sprintf("\$\\varepsilon_T = %.0f\$ eV", wt_f); transform = ax_w.transAxes, color = "black", fontsize = 17, va = "center", ha = "left")
     end
 
     mkpath(dirname(abspath(out_png)))
