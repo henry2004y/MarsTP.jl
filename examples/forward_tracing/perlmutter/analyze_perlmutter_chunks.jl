@@ -44,21 +44,29 @@ function analyze_discovered_chunks(base_prefix::AbstractString, mode::String = "
     end
 
     history = Dict{String, Any}[]
+    chunk_paper_dirs = String[]
     paper_dirs = String[]
     cum_particles = 0
     for (k, cdir) in enumerate(chunk_dirs)
+        c_paper = @sprintf("%s_chunk_%03d_paper", base_prefix, k)
         pdir = @sprintf("%s_cum_%03d_paper", base_prefix, k)
+        push!(chunk_paper_dirs, c_paper)
         push!(paper_dirs, pdir)
         meta_k = TOML.parsefile(joinpath(cdir, "metadata.toml"))
         comp_k = TOML.parsefile(joinpath(cdir, "completion.toml"))
         cum_particles += Int(meta_k["n_particles"])
 
-        if !isfile(joinpath(pdir, "paper_analysis.jld2"))
-            println("=== Analyzing cumulative chunks 1..$k ($cum_particles particles) -> $pdir ===")
-            run_paper_analysis(chunk_dirs[1:k], pdir)
+        c_paper_jld = joinpath(c_paper, "paper_analysis.jld2")
+        has_valid_c_paper = isfile(c_paper_jld) && jldopen(f -> haskey(f, "raw_n_chunks"), c_paper_jld, "r")
+        if !has_valid_c_paper
+            println("=== Analyzing single chunk $k -> $c_paper ===")
+            run_paper_analysis(cdir, c_paper; render_plots = false)
         else
-            println("=== Reusing existing cumulative analysis at $pdir ===")
+            println("=== Reusing pre-analyzed single-chunk summary $c_paper ===")
         end
+
+        println("=== Merging cumulative chunks 1..$k ($cum_particles particles) -> $pdir ===")
+        merge_paper_analyses(chunk_paper_dirs, pdir; render_plots = true)
 
         entry = Dict{String, Any}(
             "cumulative_chunks" => k,

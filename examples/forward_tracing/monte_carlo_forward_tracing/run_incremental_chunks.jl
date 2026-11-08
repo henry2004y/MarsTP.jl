@@ -91,11 +91,14 @@ function run_incremental_chunks(
         save_trajectories::Symbol = :roi_and_sample,
         save_stride::Int = 5,
         skip_inner_and_trapped::Bool = true,
-        fields_path::String = MarsTP.data_path("mars_fields_without_crustal.vts"),
+        fields_path::String = occursin("without_crustal", lowercase(base_prefix)) ?
+            MarsTP.data_path("mars_fields_without_crustal.vts") :
+            MarsTP.data_path("mars_fields_with_crustal.vts"),
         rel_tol::Float64 = 0.0,
         random_seed::Bool = true,
         base_seed::Int = 20260906,
-        keep_raw_batches::Bool = true,
+        keep_raw_batches::Bool = false,
+        keep_first_chunk_raw::Bool = true,
         render_plots::Bool = true,
     )
     chunk_dirs = String[]
@@ -110,7 +113,10 @@ function run_incremental_chunks(
         c_paper = @sprintf("%s_chunk_%02d_paper", base_prefix, k)
         pdir = @sprintf("%s_cum_%02d_paper", base_prefix, k)
         comp_path = joinpath(cdir, "completion.toml")
-        if isfile(comp_path) && get(TOML.parsefile(comp_path), "complete", false) === true
+        c_paper_jld = joinpath(c_paper, "paper_analysis.jld2")
+        has_valid_c_paper = isfile(c_paper_jld) && jldopen(f -> haskey(f, "raw_n_chunks"), c_paper_jld, "r")
+        has_raw_batches = isdir(cdir) && !isempty(filter(p -> occursin(r"^trajectories_.*\.jld2$", basename(p)), readdir(cdir)))
+        if isfile(comp_path) && get(TOML.parsefile(comp_path), "complete", false) === true && (has_valid_c_paper || has_raw_batches)
             existing_meta = TOML.parsefile(joinpath(cdir, "metadata.toml"))
             s_exist = Int(get(existing_meta, "seed", 0))
             s_exist in used_seeds && error("Duplicate seed $s_exist detected in existing chunk $cdir")
@@ -159,7 +165,6 @@ function run_incremental_chunks(
         comp_k = TOML.parsefile(comp_path)
         cum_particles += Int(meta_k["n_particles"])
 
-        c_paper_jld = joinpath(c_paper, "paper_analysis.jld2")
         has_valid_c_paper = isfile(c_paper_jld) && jldopen(f -> haskey(f, "raw_n_chunks"), c_paper_jld, "r")
         if !has_valid_c_paper
             println("=== Analyzing single chunk $k -> $c_paper ===")
@@ -168,7 +173,7 @@ function run_incremental_chunks(
             println("=== Reusing pre-analyzed chunk summary $c_paper ===")
         end
 
-        if !keep_raw_batches
+        if !keep_raw_batches && !(keep_first_chunk_raw && k == 1)
             for fpath in filter(p -> occursin(r"^trajectories_.*\.jld2$", basename(p)), readdir(cdir; join = true))
                 rm(fpath; force = true)
             end
@@ -203,7 +208,13 @@ function run_incremental_chunks(
             plot_convergence_history(history, "$(base_prefix)_convergence.png")
             if rel_tol > 0
                 m = entry["metrics"]
-                key_vals = [m["orbit_log_def_rel_l2"], m["tail_log_def_rel_l2"], m["tail_ux_rel_l2"]]
+                key_vals = [
+                    m["fig3_log_def_rel_l2"],
+                    m["orbit_log_def_rel_l2"],
+                    m["orbit_w_conv_rel_l2"],
+                    m["tail_log_def_rel_l2"],
+                    m["tail_ux_rel_l2"],
+                ]
                 if all(v -> isfinite(v) && v <= rel_tol, key_vals)
                     println("=== Convergence threshold rel_tol=$(rel_tol) reached after $k chunks ($cum_particles particles)! ===")
                     break
@@ -215,12 +226,17 @@ function run_incremental_chunks(
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    base_prefix = length(ARGS) >= 1 ? ARGS[1] : "outputs/mc_400km_crustal"
-    n_chunks = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 3
-    per_cell = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : 100
+    base_prefix = length(ARGS) >= 1 ? ARGS[1] : "outputs/mc_400km_with_crustal"
+    n_chunks = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 20
+    per_cell = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : 500
     cell_stride = length(ARGS) >= 4 ? parse(Int, ARGS[4]) : 1
     save_mode = length(ARGS) >= 5 ? Symbol(ARGS[5]) : :roi_and_sample
-    rel_tol = length(ARGS) >= 6 ? parse(Float64, ARGS[6]) : 0.0
+    rel_tol = length(ARGS) >= 6 ? parse(Float64, ARGS[6]) : 0.03
+    fields_arg = length(ARGS) >= 7 ? ARGS[7] : (
+        occursin("without_crustal", lowercase(base_prefix)) ?
+        MarsTP.data_path("mars_fields_without_crustal.vts") :
+        MarsTP.data_path("mars_fields_with_crustal.vts")
+    )
     run_incremental_chunks(
         base_prefix;
         n_chunks,
@@ -228,5 +244,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
         cell_stride,
         save_trajectories = save_mode,
         rel_tol,
+        fields_path = fields_arg,
     )
 end

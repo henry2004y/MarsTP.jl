@@ -21,11 +21,25 @@ function _default_fig1_field_path()
     return isfile(dat_path) ? dat_path : MarsTP.data_path("mars_fields_without_crustal.vts")
 end
 
+function _resolve_fig1_field_path(vts_path::AbstractString)
+    resolved = MarsTP.resolve_project_path(vts_path)
+    endswith(lowercase(resolved), ".dat") && return resolved
+    bname = lowercase(basename(resolved))
+    if occursin("without_crustal", bname)
+        dat_no = MarsTP.project_path("BATSRUS-data", "MHD-without-crustal", "3d__var_1_n00150000.dat")
+        isfile(dat_no) && return dat_no
+    elseif occursin("with_crustal", bname) || occursin("crustal", bname)
+        dat_wc = MarsTP.project_path("BATSRUS-data", "MHD-with-crustal", "3d__var_1_n00120000.dat")
+        isfile(dat_wc) && return dat_wc
+    end
+    return resolved
+end
+
 function plot_fig1(
         out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures", "fig1.png");
         vts_path::AbstractString = _default_fig1_field_path(),
     )
-    resolved_path = MarsTP.resolve_project_path(vts_path)
+    resolved_path = _resolve_fig1_field_path(vts_path)
     if endswith(lowercase(resolved_path), ".dat")
         println("Loading native BATSRUS Tecplot file via Batsrus.jl: ", resolved_path)
         bat = load_batsrus_tecplot(resolved_path; polar_repair = true)
