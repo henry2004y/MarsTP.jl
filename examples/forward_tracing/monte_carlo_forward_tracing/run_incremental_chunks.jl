@@ -91,12 +91,15 @@ function run_incremental_chunks(
         save_trajectories::Symbol = :roi_and_sample,
         save_stride::Int = 5,
         skip_inner_and_trapped::Bool = true,
-        fields_path::String = MarsTP.data_path("mars_fields_with_crustal.vts"),
+        fields_path::String = MarsTP.data_path("mars_fields_without_crustal.vts"),
         rel_tol::Float64 = 0.0,
         random_seed::Bool = true,
         base_seed::Int = 20260906,
+        keep_raw_batches::Bool = true,
+        render_plots::Bool = true,
     )
     chunk_dirs = String[]
+    chunk_paper_dirs = String[]
     paper_dirs = String[]
     history = Dict{String, Any}[]
     used_seeds = Set{Int}()
@@ -104,6 +107,7 @@ function run_incremental_chunks(
 
     for k in 1:n_chunks
         cdir = @sprintf("%s_chunk_%02d", base_prefix, k)
+        c_paper = @sprintf("%s_chunk_%02d_paper", base_prefix, k)
         pdir = @sprintf("%s_cum_%02d_paper", base_prefix, k)
         comp_path = joinpath(cdir, "completion.toml")
         if isfile(comp_path) && get(TOML.parsefile(comp_path), "complete", false) === true
@@ -114,6 +118,7 @@ function run_incremental_chunks(
             println("=== Chunk $k/$n_chunks already complete at $cdir (seed=$s_exist); reusing ===")
         else
             ispath(cdir) && rm(cdir; recursive = true, force = true)
+            ispath(c_paper) && rm(c_paper; recursive = true, force = true)
             chunk_seed = if random_seed
                 s = 0
                 while s <= 0 || (s in used_seeds)
@@ -148,13 +153,29 @@ function run_incremental_chunks(
             ShellMonteCarlo.run_monte_carlo(cdir, cfg)
         end
         push!(chunk_dirs, cdir)
+        push!(chunk_paper_dirs, c_paper)
         push!(paper_dirs, pdir)
         meta_k = TOML.parsefile(joinpath(cdir, "metadata.toml"))
         comp_k = TOML.parsefile(comp_path)
         cum_particles += Int(meta_k["n_particles"])
 
-        println("=== Analyzing cumulative chunks 1..$k ($cum_particles total particles) -> $pdir ===")
-        run_paper_analysis(chunk_dirs, pdir)
+        c_paper_jld = joinpath(c_paper, "paper_analysis.jld2")
+        has_valid_c_paper = isfile(c_paper_jld) && jldopen(f -> haskey(f, "raw_n_chunks"), c_paper_jld, "r")
+        if !has_valid_c_paper
+            println("=== Analyzing single chunk $k -> $c_paper ===")
+            run_paper_analysis(cdir, c_paper; render_plots = false)
+        else
+            println("=== Reusing pre-analyzed chunk summary $c_paper ===")
+        end
+
+        if !keep_raw_batches
+            for fpath in filter(p -> occursin(r"^trajectories_.*\.jld2$", basename(p)), readdir(cdir; join = true))
+                rm(fpath; force = true)
+            end
+        end
+
+        println("=== Merging cumulative chunks 1..$k ($cum_particles total particles) -> $pdir ===")
+        merge_paper_analyses(chunk_paper_dirs, pdir; render_plots)
 
         entry = Dict{String, Any}(
             "cumulative_chunks" => k,

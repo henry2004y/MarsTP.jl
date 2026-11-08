@@ -15,7 +15,7 @@ module ShellMonteCarlo
         absorption_altitude_km::Float64 = 200.0
         per_cell::Int = 100
         seed::Int = 20260906
-        detector::Vec = Vec(1, 0, 2) * Rm
+        detector::Vec = Vec(-2, 0, 0) * Rm
         side::Float64 = 0.2Rm
         # native cell edges, no duplicate longitude seam or duplicate pole areas
         cell_stride::Int = 1
@@ -58,21 +58,82 @@ module ShellMonteCarlo
         return Xoshiro(w[1], w[2], w[3], w[4])
     end
 
-    @inline function _hits_paper_roi(tr)
-        @inbounds for u in tr.u
-            x, y, z = u[1], u[2], u[3]
-            if abs(y) <= 0.18 * Rm
-                rxz2 = x * x + z * z
-                if (1.8 * Rm)^2 <= rxz2 <= (2.2 * Rm)^2
-                    return true
+    const _PAPER_SLAB_BOXES = Tuple{Vec, Vec}[
+        # 1. Virtual detector at (-2, 0, 0) Rm (Fig. 3d-f)
+        (Vec(-2.105 * Rm, -0.105 * Rm, -0.105 * Rm), Vec(-1.895 * Rm, 0.105 * Rm, 0.105 * Rm)),
+        # 2. Cross-tail transect at X = -2.0 Rm, Y in [-1, 1] Rm, Z = +0.75 Rm (Fig. 6 & Fig. 7)
+        (Vec(-2.105 * Rm, -1.105 * Rm, 0.645 * Rm), Vec(-1.895 * Rm, 1.105 * Rm, 0.855 * Rm)),
+        # 3. Cross-tail transect at X = -1.75 Rm, Y in [-1, 1] Rm, Z = +0.75 Rm
+        (Vec(-1.855 * Rm, -1.105 * Rm, 0.645 * Rm), Vec(-1.645 * Rm, 1.105 * Rm, 0.855 * Rm)),
+    ]
+
+    const _PAPER_ORBIT_BOXES = let
+        boxes = Tuple{Vec, Vec}[]
+        half = 0.105 * Rm
+        for r_Rm in (2.5, 2.0), ang in 0.0:2.5:240.0
+            c = Vec(r_Rm * Rm * cosd(ang), 0.0, r_Rm * Rm * sind(ang))
+            push!(boxes, (c .- half, c .+ half))
+        end
+        boxes
+    end
+
+    @inline function _segment_hits_box(xa::Vec, xb::Vec, lo::Vec, hi::Vec)
+        (max(xa[1], xb[1]) < lo[1] || min(xa[1], xb[1]) > hi[1]) && return false
+        (max(xa[2], xb[2]) < lo[2] || min(xa[2], xb[2]) > hi[2]) && return false
+        (max(xa[3], xb[3]) < lo[3] || min(xa[3], xb[3]) > hi[3]) && return false
+        return MarsTP._forward_cube_interval(xa, xb - xa, lo, hi) !== nothing
+    end
+
+    @inline function _step_hits_paper_roi(xa::Vec, xb::Vec)
+        @inbounds for (lo, hi) in _PAPER_SLAB_BOXES
+            _segment_hits_box(xa, xb, lo, hi) && return true
+        end
+        if min(xa[2], xb[2]) <= 0.105 * Rm && max(xa[2], xb[2]) >= -0.105 * Rm
+            ra2 = xa[1] * xa[1] + xa[3] * xa[3]
+            rb2 = xb[1] * xb[1] + xb[3] * xb[3]
+            if ((1.80 * Rm)^2 <= ra2 <= (2.70 * Rm)^2) || ((1.80 * Rm)^2 <= rb2 <= (2.70 * Rm)^2)
+                @inbounds for (lo, hi) in _PAPER_ORBIT_BOXES
+                    _segment_hits_box(xa, xb, lo, hi) && return true
                 end
-            end
-            if (-1.92 * Rm <= x <= -1.58 * Rm) && (abs(y) <= 1.15 * Rm) && (0.58 * Rm <= z <= 0.92 * Rm)
-                return true
             end
         end
         return false
     end
+
+    function _paper_roi_last_step(history::Vector{Row})
+        last_idx = 0
+        n = length(history)
+        n >= 2 || return 0
+        @inbounds for j in 2:n
+            a = history[j - 1]
+            b = history[j]
+            xa = Vec(a[2], a[3], a[4])
+            xb = Vec(b[2], b[3], b[4])
+            if _step_hits_paper_roi(xa, xb)
+                last_idx = j
+            end
+        end
+        return last_idx
+    end
+
+    function _paper_roi_last_step_tr(tr)
+        last_idx = 0
+        n = length(tr.t)
+        n >= 2 || return 0
+        @inbounds for j in 2:n
+            a = tr.u[j - 1]
+            b = tr.u[j]
+            xa = Vec(Float64(a[1]), Float64(a[2]), Float64(a[3]))
+            xb = Vec(Float64(b[1]), Float64(b[2]), Float64(b[3]))
+            if _step_hits_paper_roi(xa, xb)
+                last_idx = j
+            end
+        end
+        return last_idx
+    end
+
+    @inline _hits_paper_roi(tr) = _paper_roi_last_step_tr(tr) > 0
+    @inline _hits_paper_roi_history(history::Vector{Row}) = _paper_roi_last_step(history) > 0
 
     @inline function _reaches_radius(tr, r_min_m::Float64)
         r2_min = r_min_m * r_min_m
@@ -91,6 +152,35 @@ module ShellMonteCarlo
         idx = collect(1:stride:n)
         last(idx) != n && push!(idx, n)
         return (; t = tr.t[idx], u = tr.u[idx])
+    end
+
+    function _stride_work_result(w_full, n_pts::Int, stride::Int)
+        (stride <= 1 || w_full === nothing) && return w_full
+        n_pts <= 2 && return w_full
+        idx = collect(1:stride:n_pts)
+        last(idx) != n_pts && push!(idx, n_pts)
+        inc_full = w_full.increments
+        inc_strided = if inc_full === nothing
+            nothing
+        else
+            n_int = length(idx) - 1
+            n_col = size(inc_full, 2)
+            mat = zeros(eltype(inc_full), n_int, n_col)
+            @inbounds for m in 1:n_int
+                r0 = idx[m]
+                r1 = idx[m + 1] - 1
+                for c in 1:n_col
+                    s = zero(eltype(inc_full))
+                    for r in r0:r1
+                        s += inc_full[r, c]
+                    end
+                    mat[m, c] = s
+                end
+            end
+            mat
+        end
+        pow_strided = w_full.powers === nothing ? nothing : w_full.powers[idx, :]
+        return (; summary = w_full.summary, increments = inc_strided, powers = pow_strided)
     end
 
     function _zero_result(p, work_itp, c = Config())
@@ -125,26 +215,47 @@ module ShellMonteCarlo
         return residence, events
     end
 
-    function trace_batch(particles, fields, param, c, work_itp)
+    function trace_batch(particles, fields, param, c, work_itp, sample_candidate_ids = Set{Int}())
         results = Vector{Any}(undef, length(particles))
-        fast_summary = (c.save_trajectories != :all) || (c.save_stride > 1) || (c.work_mode == :summary && !c.save_power)
         if c.tracing_backend == :cpu
             Threads.@threads for q in eachindex(particles)
                 p = particles[q]
                 if p.W > 0
                     r = trace_particle(p.x, p.v, param, c; compute_step_work = false)
-                    need_work = !c.skip_inner_and_trapped || r.status == "outer" || !isempty(r.residence)
+                    roi_last_idx = _paper_roi_last_step(r.history)
+                    if !isempty(r.residence)
+                        t_res_end = r.residence[end][2]
+                        j_res = findlast(a -> a[1] <= t_res_end + c.dt, r.history)
+                        j_res !== nothing && (roi_last_idx = max(roi_last_idx, min(length(r.history), j_res + 1)))
+                    end
+                    hits_roi = roi_last_idx > 0
+                    in_sample_cand = !isempty(sample_candidate_ids) && hasproperty(p, :id) && (p.id in sample_candidate_ids)
+                    need_work = if c.save_trajectories == :roi_and_sample && c.skip_inner_and_trapped
+                        !isempty(r.residence) || hits_roi || in_sample_cand
+                    else
+                        !c.skip_inner_and_trapped || r.status == "outer" || !isempty(r.residence) || hits_roi || in_sample_cand
+                    end
                     if need_work
-                        tr = (; t = [a[1] for a in r.history], u = [SVector{6, Float64}(a[2], a[3], a[4], a[5], a[6], a[7]) for a in r.history])
-                        w_full = trajectory_work(tr, work_itp; species = "O2+", mode = fast_summary ? :summary : c.work_mode, power = fast_summary ? false : c.save_power)
+                        # For ROI-only trajectories (not in the global plot sample), truncate post-ROI tail after final detector exit
+                        n_hist = length(r.history)
+                        n_keep = if c.save_trajectories == :roi_and_sample && !in_sample_cand && roi_last_idx > 0
+                            s = max(c.save_stride, 1)
+                            min(n_hist, (cld(roi_last_idx - 1, s) + 1) * s + 1)
+                        else
+                            n_hist
+                        end
+                        hist_slice = @view r.history[1:n_keep]
+                        tr = (; t = [a[1] for a in hist_slice], u = [SVector{6, Float64}(a[2], a[3], a[4], a[5], a[6], a[7]) for a in hist_slice])
+                        w_full = trajectory_work(tr, work_itp; species = "O2+", mode = c.work_mode, power = c.save_power)
                         w_sum = w_full.summary
-                        results[q] = merge(r, (; tr, work = w_sum.total_eV, residual = r.dK - w_sum.total_eV, work_summary = w_sum, work_result = fast_summary ? nothing : w_full))
+                        w_saved = _stride_work_result(w_full, length(tr.t), c.save_stride)
+                        results[q] = merge(r, (; tr, hits_roi, work = w_sum.total_eV, dK = w_sum.delta_kinetic_eV, residual = w_sum.energy_residual_eV, work_summary = w_sum, work_result = w_saved))
                     else
                         tr = (; t = [0.0, r.time], u = [SVector{6, Float64}(p.x..., p.v...), SVector{6, Float64}(r.x..., r.v...)])
-                        results[q] = merge(r, (; tr, work_summary = nothing, work_result = nothing))
+                        results[q] = merge(r, (; tr, hits_roi, work_summary = nothing, work_result = nothing))
                     end
                 else
-                    results[q] = _zero_result(p, work_itp, c)
+                    results[q] = merge(_zero_result(p, work_itp, c), (; hits_roi = false))
                 end
             end
         else
@@ -160,15 +271,16 @@ module ShellMonteCarlo
             for (q, tr) in zip(active, sols)
                 residence, events = _detector_records(tr, c)
                 w = tr.work;laststate = last(tr.u)
+                tr_nt = (; t = tr.t, u = tr.u)
                 results[q] = (;
-                    history = [Row(t, u...) for (t, u) in zip(tr.t, tr.u)], tr = (; t = tr.t, u = tr.u), residence, events,
+                    history = [Row(t, u...) for (t, u) in zip(tr.t, tr.u)], tr = tr_nt, hits_roi = _hits_paper_roi(tr_nt), residence, events,
                     status = String(tr.status), time = last(tr.t), x = Vec(laststate[1:3]), v = Vec(laststate[4:6]),
                     work = w.total_eV, dK = w.delta_kinetic_eV, residual = w.energy_residual_eV,
                     maxgyro = tr.maxgyro, work_summary = w, work_result = nothing,
                 )
             end
             for q in eachindex(particles)
-                particles[q].W > 0 || (results[q] = _zero_result(particles[q], work_itp, c))
+                particles[q].W > 0 || (results[q] = merge(_zero_result(particles[q], work_itp, c), (; hits_roi = false)))
             end
         end
         return results
@@ -508,7 +620,8 @@ module ShellMonteCarlo
             pos_ids = [p.id for p in particles if p.W > 0]
             rng_sample = _stream_rng(actual_seed, c.chunk_id, 0, -1)
             shuffle!(rng_sample, pos_ids)
-            for pid in Iterators.take(pos_ids, min(5 * c.trajectory_sample_size, length(pos_ids)))
+            n_cand = c.trajectory_sample_size <= 0 ? 0 : min(max(c.trajectory_sample_size + min(512, cld(c.trajectory_sample_size, 5)), round(Int, 1.03 * c.trajectory_sample_size)), length(pos_ids))
+            for pid in Iterators.take(pos_ids, n_cand)
                 push!(sample_candidate_ids, pid)
             end
         end
@@ -566,7 +679,7 @@ module ShellMonteCarlo
         try
             for bstart in 1:c.batch_size:length(particles)
                 indices = bstart:min(bstart + c.batch_size - 1, length(particles))
-                results = trace_batch(particles[indices], fields, param, c, work_itp)
+                results = trace_batch(particles[indices], fields, param, c, work_itp, sample_candidate_ids)
                 batchid = div(bstart - 1, c.batch_size) + 1
                 save_q = if c.save_trajectories == :all
                     c.skip_inner_and_trapped ? [q for q in eachindex(indices) if results[q].status == "outer" || !isempty(results[q].residence)] : collect(eachindex(indices))
@@ -575,18 +688,14 @@ module ShellMonteCarlo
                 elseif c.save_trajectories == :roi_and_sample
                     kept = Int[]
                     for q in eachindex(indices)
-                        st = results[q].status
                         has_probe = !isempty(results[q].residence)
-                        if c.skip_inner_and_trapped && st != "outer" && !has_probe
-                            continue
-                        end
+                        hits_roi = results[q].hits_roi
                         pid = particles[indices[q]].id
-                        in_sample = false
-                        if (pid in sample_candidate_ids) && length(saved_sample_ids) < c.trajectory_sample_size && st == "outer"
+                        in_sample = (pid in sample_candidate_ids) && (results[q].time > 0.0) && (length(results[q].tr.t) >= 2)
+                        if in_sample
                             push!(saved_sample_ids, pid)
-                            in_sample = true
                         end
-                        if in_sample || has_probe || (st == "outer" && _hits_paper_roi(results[q].tr))
+                        if in_sample || has_probe || hits_roi
                             push!(kept, q)
                         end
                     end
@@ -598,12 +707,14 @@ module ShellMonteCarlo
                 end
                 if !isempty(save_q)
                     saved_trs = [_stride_trajectory(results[q].tr, c.save_stride) for q in save_q]
-                    saved_work_results = if c.tracing_backend == :cpu && results[first(save_q)].work_result !== nothing && c.save_stride == 1
+                    saved_work_results = if c.tracing_backend == :cpu && results[first(save_q)].work_result !== nothing
                         [results[q].work_result for q in save_q]
                     elseif c.work_mode == :steps || c.save_power
                         w_vec = Vector{Any}(undef, length(save_q))
                         Threads.@threads for k in eachindex(save_q)
-                            w_vec[k] = trajectory_work(saved_trs[k], work_itp; species = "O2+", mode = c.work_mode, power = c.save_power)
+                            q = save_q[k]
+                            w_full = trajectory_work(results[q].tr, work_itp; species = "O2+", mode = c.work_mode, power = c.save_power)
+                            w_vec[k] = _stride_work_result(w_full, length(results[q].tr.t), c.save_stride)
                         end
                         w_vec
                     else
@@ -624,12 +735,13 @@ module ShellMonteCarlo
                 end
                 for (q, i) in enumerate(indices)
                     p = particles[i];r = results[q];counts[r.status] += 1
-                    if c.skip_inner_and_trapped && r.status != "outer" && isempty(r.residence)
+                    if r.work_summary === nothing || (c.skip_inner_and_trapped && r.status != "outer" && isempty(r.residence) && !r.hits_roi && !(p.id in sample_candidate_ids))
                         continue
                     end
                     dwell = sum((a[2] - a[1] for a in r.residence); init = 0.0)
                     if c.include_gradpe_work
-                        println(summary, join((p.id, p.cellid, p.W, p.flux, p.area, p.x..., p.v..., r.status, r.time, r.x..., r.v..., r.work, r.dK, r.residual, r.maxgyro, dwell, p.logw, p.density_weight, r.work_summary.conv_eV, r.work_summary.hall_eV, r.work_summary.field_sum_residual_eV, r.work_summary.gradpe_eV), ','))
+                        gradpe = hasproperty(r.work_summary, :gradpe_eV) ? r.work_summary.gradpe_eV : 0.0
+                        println(summary, join((p.id, p.cellid, p.W, p.flux, p.area, p.x..., p.v..., r.status, r.time, r.x..., r.v..., r.work, r.dK, r.residual, r.maxgyro, dwell, p.logw, p.density_weight, r.work_summary.conv_eV, r.work_summary.hall_eV, r.work_summary.field_sum_residual_eV, gradpe), ','))
                     else
                         println(summary, join((p.id, p.cellid, p.W, p.flux, p.area, p.x..., p.v..., r.status, r.time, r.x..., r.v..., r.work, r.dK, r.residual, r.maxgyro, dwell, p.logw, p.density_weight, r.work_summary.conv_eV, r.work_summary.hall_eV, r.work_summary.field_sum_residual_eV), ','))
                     end
@@ -648,8 +760,13 @@ module ShellMonteCarlo
             close(summary);close(resio);close(eventio)
         end
         if c.save_trajectories == :roi_and_sample
+            if length(saved_sample_ids) > c.trajectory_sample_size
+                rng_trim = _stream_rng(actual_seed, c.chunk_id, 0, -2)
+                shuffle!(rng_trim, saved_sample_ids)
+                resize!(saved_sample_ids, c.trajectory_sample_size)
+            end
             open(joinpath(out, "plot_sample_ids.toml"), "w") do io
-                TOML.print(io, Dict("seed" => c.seed, "particle_ids" => sort!(saved_sample_ids)))
+                TOML.print(io, Dict("seed" => actual_seed, "particle_ids" => sort!(saved_sample_ids)))
             end
         end
         open(joinpath(out, "completion.toml"), "w") do io

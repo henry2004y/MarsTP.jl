@@ -3,12 +3,12 @@ using Printf
 
 function parse_args(args)
     opts = Dict{String, String}(
-        "with_crustal_dat" => project_path("BATSRUS-data", "MHD-with-crustal", "3d__var_1_n00150000.dat"),
-        "without_crustal_dat" => project_path("BATSRUS-data", "MHD-without-crustal", "3d__var_1_n00120000.dat"),
+        "with_crustal_dat" => project_path("BATSRUS-data", "MHD-with-crustal", "3d__var_1_n00120000.dat"),
+        "without_crustal_dat" => project_path("BATSRUS-data", "MHD-without-crustal", "3d__var_1_n00150000.dat"),
         "out_with_crustal" => data_path("mars_fields_with_crustal.vts"),
         "out_without_crustal" => data_path("mars_fields_without_crustal.vts"),
         "out_default" => data_path("mars_fields_spherical_from_dat.vts"),
-        "default_case" => "with_crustal",
+        "default_case" => "without_crustal",
         "compute_source_rates" => "true",
     )
     for arg in args

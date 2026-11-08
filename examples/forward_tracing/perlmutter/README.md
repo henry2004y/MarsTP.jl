@@ -4,12 +4,15 @@ This folder contains the Julia runners and Slurm job scripts for running increme
 
 ## Files in This Folder
 
-- [`setup_perlmutter.sh`](setup_perlmutter.sh): One-time setup script on a Perlmutter login node (`Pkg.instantiate()`, `Pkg.precompile()`, and converting `BATSRUS-data/` `.dat` files into `data/mars_fields_with_crustal.vts` and `data/mars_fields_without_crustal.vts`).
-- [`run_perlmutter_chunk.jl`](run_perlmutter_chunk.jl): Runs one chunk (`SLURM_ARRAY_TASK_ID`) or a sequential range of chunks (`CHUNK_START..CHUNK_END`) with hardware-entropy `RandomDevice()` seeds, SHA-256 256-bit `Xoshiro` streams, non-overlapping global `particle_id`s, and compact `Float32` packed JLD2 trajectory output (`format_version = 3`).
-- [`analyze_perlmutter_chunks.jl`](analyze_perlmutter_chunks.jl): Discovers all completed `*_chunk_XXX` directories, verifies seed/chunk uniqueness, pools them with automatic $1/K$ rate-weight scaling, generates `paper_analysis.jld2` (`~3.2 MB`) and all 6 paper figures (`Figures 3–7`), and computes chunk-by-chunk statistical convergence (`*_convergence.toml` and `*_convergence.png`).
-- [`submit_mc_cpu.slurm`](submit_mc_cpu.slurm): Slurm batch script for Perlmutter CPU nodes (`--constraint=cpu`, 128 threads).
-- [`submit_mc_gpu.slurm`](submit_mc_gpu.slurm): Slurm batch script for Perlmutter GPU nodes (`--constraint=gpu`, A100 GPU with `TRACING_BACKEND=cuda`).
-- [`submit_analyze.slurm`](submit_analyze.slurm): Slurm batch script for pooling completed chunks and generating the paper figures and convergence report.
+- [`sync_to_perlmutter.sh`](sync_to_perlmutter.sh): Automated WSL-to-Perlmutter sync for codebase and precomputed `.vts` / `.mat` data grids.
+- [`launch_production.sh`](launch_production.sh): Script to launch pilot CPU/GPU benchmarks or full 5-chunk production arrays + chained analysis.
+- [`fetch_results.sh`](fetch_results.sh): Pulls compact analysis outputs (`paper_analysis.jld2`, Figs 3-7, convergence) back to `./outputs/perlmutter_runs/`.
+- [`setup_perlmutter.sh`](setup_perlmutter.sh): One-time setup script on a Perlmutter login node (`Pkg.instantiate()`, `Pkg.precompile()`).
+- [`run_perlmutter_chunk.jl`](run_perlmutter_chunk.jl): Runs one chunk (`SLURM_ARRAY_TASK_ID`) or a sequential range of chunks (`CHUNK_START..CHUNK_END`).
+- [`analyze_perlmutter_chunks.jl`](analyze_perlmutter_chunks.jl): Pools completed chunks, generates `paper_analysis.jld2` (~3.2 MB), 6 paper figures, and convergence report.
+- [`submit_mc_cpu.slurm`](submit_mc_cpu.slurm): Slurm batch script for Perlmutter CPU nodes (`--constraint=cpu`, 128 threads, account `m4453`).
+- [`submit_mc_gpu.slurm`](submit_mc_gpu.slurm): Slurm batch script for Perlmutter GPU nodes (`--constraint=gpu`, A100 GPU, account `m4453`).
+- [`submit_analyze.slurm`](submit_analyze.slurm): Slurm batch script for pooling completed chunks and generating the paper figures.
 
 ---
 

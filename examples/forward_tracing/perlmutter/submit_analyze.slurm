@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=marstp_analyze
-#SBATCH --account=mXXXX
+#SBATCH --account=m4453
 #SBATCH --constraint=cpu
 #SBATCH --qos=regular
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=256
-#SBATCH --time=00:30:00
+#SBATCH --time=02:00:00
 #SBATCH --output=logs/analyze_%j.out
 #SBATCH --error=logs/analyze_%j.err
 
@@ -19,6 +19,8 @@ set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 mkdir -p logs
+
+command -v julia &>/dev/null || module load julia 2>/dev/null || true
 
 export JULIA_NUM_THREADS="${JULIA_NUM_THREADS:-64}"
 export CASE="${CASE:-with_crustal}"

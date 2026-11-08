@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=marstp_mc_cpu
-#SBATCH --account=mXXXX
+#SBATCH --account=m4453
 #SBATCH --constraint=cpu
 #SBATCH --qos=regular
 #SBATCH --nodes=1
@@ -28,6 +28,8 @@ set -euo pipefail
 
 cd "${SLURM_SUBMIT_DIR:-$PWD}"
 mkdir -p logs
+
+command -v julia &>/dev/null || module load julia 2>/dev/null || true
 
 export JULIA_NUM_THREADS="${JULIA_NUM_THREADS:-128}"
 export CASE="${CASE:-with_crustal}"

@@ -120,7 +120,7 @@ end
         itp_full = build_field_work_interpolators()
         @test itp_full.gradpe !== nothing && itp_full.res !== nothing
     end
-    dat_file = project_path("BATSRUS-data", "MHD-with-crustal", "3d__var_1_n00150000.dat")
+    dat_file = project_path("BATSRUS-data", "MHD-without-crustal", "3d__var_1_n00150000.dat")
     if isfile(dat_file)
         sl = interpolate_batsrus_slice(dat_file, range(-2.5, 2.5, length = 11), range(-2.5, 2.5, length = 11); plane = "XZ", variable = "O2p")
         @test size(sl) == (11, 11)

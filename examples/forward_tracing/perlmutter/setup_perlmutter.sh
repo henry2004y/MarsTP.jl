@@ -7,10 +7,12 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$REPO_ROOT"
 
+command -v julia &>/dev/null || module load julia 2>/dev/null || true
+
 mkdir -p logs "${SCRATCH:-$REPO_ROOT/outputs}/MarsTP_outputs"
 
 echo "=== 1. Instantiating and precompiling MarsTP.jl environment ==="
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+julia --project=. -e 'using Pkg; try Pkg.instantiate() catch e; println("Instantiate error, resolving: ", e); Pkg.resolve(); Pkg.instantiate() end; Pkg.precompile()'
 
 if [[ ! -f "data/mars_fields_with_crustal.vts" || ! -f "data/mars_fields_without_crustal.vts" ]]; then
     echo "=== 2. Converting BATSRUS .dat files to spherical .vts in data/ ==="
