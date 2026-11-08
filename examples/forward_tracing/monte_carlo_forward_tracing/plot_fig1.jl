@@ -125,9 +125,8 @@ function plot_fig1(
     PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13.5
     PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13.5
 
-    fig = plt.figure(figsize = (13.8, 12.2))
-    gs = fig.add_gridspec(2, 2; left = 0.06, right = 0.88, top = 0.94, bottom = 0.06, hspace = 0.24, wspace = 0.36)
-    axes = [fig.add_subplot(gs[i, j]) for i in 1:2, j in 1:2]
+    fig, axes = plt.subplots(2, 2; figsize = (13.6, 12.2), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.04, hspace = 0.04)
 
     panels = (
         (axes[1, 1], b_mag, bx_u, by_u, "a", "Magnetic field, XY", "Y (Rm)", L"$|\mathbf{B}|$ (nT)", (1.0e-1, 4.5e1)),

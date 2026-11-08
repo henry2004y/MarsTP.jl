@@ -202,9 +202,11 @@ function plot_fig2(
     PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13
     PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13
 
-    fig = plt.figure(figsize = (13.8, 11.2))
-    gs_left = fig.add_gridspec(3, 1; left = 0.07, right = 0.44, top = 0.93, bottom = 0.08, hspace = 0.42)
-    gs_right = fig.add_gridspec(2, 1; left = 0.57, right = 0.88, top = 0.91, bottom = 0.08, hspace = 0.38)
+    fig = plt.figure(figsize = (13.8, 11.2), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.05, hspace = 0.04)
+    gs_main = fig.add_gridspec(1, 2; width_ratios = [1.05, 1.0])
+    gs_left = gs_main[1, 1].subgridspec(3, 1)
+    gs_right = gs_main[1, 2].subgridspec(2, 1)
 
     ax_a = fig.add_subplot(gs_left[1, 1])
     ax_b = fig.add_subplot(gs_left[2, 1])

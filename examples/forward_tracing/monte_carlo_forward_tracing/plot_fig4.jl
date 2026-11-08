@@ -64,9 +64,11 @@ function plot_fig4(
     PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13.5
     PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13.5
 
-    fig = plt.figure(figsize = (12.8, 13.2))
-    gs_top = fig.add_gridspec(1, 2; left = 0.08, right = 0.87, top = 0.91, bottom = 0.56, wspace = 0.30)
-    gs_bot = fig.add_gridspec(2, 2; left = 0.08, right = 0.87, top = 0.47, bottom = 0.06, hspace = 0.16, wspace = 0.22)
+    fig = plt.figure(figsize = (12.8, 13.2), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.04, hspace = 0.04)
+    gs_main = fig.add_gridspec(2, 1; height_ratios = [1.0, 1.25])
+    gs_top = gs_main[1, 1].subgridspec(1, 2)
+    gs_bot = gs_main[2, 1].subgridspec(2, 2)
 
     ax_a = fig.add_subplot(gs_top[1, 1])
     ax_b = fig.add_subplot(gs_top[1, 2])
@@ -148,11 +150,6 @@ function plot_fig4(
     ax_b.text(90.0, 1.08, "+E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 14.5, ha = "center", va = "bottom", clip_on = false)
     ax_b.text(210.0, 1.08, "−E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 14.5, ha = "center", va = "bottom", clip_on = false)
 
-    cbar_b_ax = fig.add_axes([0.89, 0.56, 0.018, 0.35])
-    cb_b = fig.colorbar(im_b; cax = cbar_b_ax)
-    cb_b.ax.tick_params(labelsize = 13)
-    cb_b.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 15)
-
     # (c)-(f) Mean cumulative work 2x2 grid
     norm_w = matplotlib.colors.SymLogNorm(linthresh = 1.0, linscale = 0.8, vmin = -1.0e4, vmax = 1.0e4, base = 10)
     work_panels = (
@@ -176,15 +173,27 @@ function plot_fig4(
         else
             ax.tick_params(labelbottom = false)
         end
-        if !show_y
+        if show_y
+            ax.set_ylabel("Energy (eV)"; fontsize = 16)
+        else
             ax.tick_params(labelleft = false)
         end
         ax.text(0.03, 0.93, tag; transform = ax.transAxes, color = "white", fontsize = 18, fontweight = "bold", va = "top", ha = "left")
         ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, color = "white", fontsize = 18.5, va = "top", ha = "right")
     end
-    fig.text(0.02, 0.265, "Energy (eV)"; fontsize = 16, rotation = 90, va = "center", ha = "center")
 
-    cbar_w_ax = fig.add_axes([0.89, 0.06, 0.018, 0.41])
+    fig.canvas.draw()
+    fig.set_layout_engine("none")
+
+    cbar_b_ax = ax_b.inset_axes([1.035, 0.0, 0.042, 1.0])
+    cb_b = fig.colorbar(im_b; cax = cbar_b_ax)
+    cb_b.ax.tick_params(labelsize = 13)
+    cb_b.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 15)
+
+    pos_d = ax_d.get_position()
+    pos_f = ax_f.get_position()
+    y_top_rel = (pos_d.y1 - pos_f.y0) / pos_f.height
+    cbar_w_ax = ax_f.inset_axes([1.035, 0.0, 0.042, y_top_rel])
     cb_w = fig.colorbar(im_w; cax = cbar_w_ax)
     cb_w.set_ticks([-1.0e4, -1.0e3, -1.0e2, -1.0e1, 0.0, 1.0e1, 1.0e2, 1.0e3, 1.0e4])
     cb_w.ax.tick_params(labelsize = 13)

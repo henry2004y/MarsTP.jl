@@ -81,17 +81,17 @@ function plot_fig6(
     PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13
     PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13
 
-    fig = plt.figure(figsize = (13.2, 12.4))
-    gs = fig.add_gridspec(4, 2; left = 0.08, right = 0.87, top = 0.94, bottom = 0.06, hspace = 0.25, wspace = 0.30)
+    fig, axes = plt.subplots(4, 2; figsize = (13.2, 12.4), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.03, wspace = 0.03, hspace = 0.03)
 
-    ax_a = fig.add_subplot(gs[1, 1])
-    ax_b = fig.add_subplot(gs[1, 2])
-    ax_c = fig.add_subplot(gs[2, 1])
-    ax_d = fig.add_subplot(gs[2, 2])
-    ax_e = fig.add_subplot(gs[3, 1])
-    ax_f = fig.add_subplot(gs[3, 2])
-    ax_g = fig.add_subplot(gs[4, 1])
-    ax_h = fig.add_subplot(gs[4, 2])
+    ax_a = axes[1, 1]
+    ax_b = axes[1, 2]
+    ax_c = axes[2, 1]
+    ax_d = axes[2, 2]
+    ax_e = axes[3, 1]
+    ax_f = axes[3, 2]
+    ax_g = axes[4, 1]
+    ax_h = axes[4, 2]
 
     # (a) YZ trajectories + Mars disk + Virtual trajectory line
     _draw_blue_trajectories!(ax_a, paths, "YZ")
@@ -195,11 +195,16 @@ function plot_fig6(
         ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, fontsize = 17.5, va = "top", ha = "right")
     end
 
-    cbar_w_ax = fig.add_axes([0.89, 0.06, 0.018, 0.40])
+    fig.canvas.draw()
+    fig.set_layout_engine("none")
+    pos_f = ax_f.get_position()
+    pos_h = ax_h.get_position()
+    y_top_rel = (pos_f.y1 - pos_h.y0) / pos_h.height
+    cbar_w_ax = ax_h.inset_axes([1.035, 0.0, 0.042, y_top_rel])
     cb_w = fig.colorbar(im_w; cax = cbar_w_ax)
     cb_w.set_ticks(-300:100:300)
-    cb_w.ax.tick_params(labelsize = 13)
-    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 15)
+    cb_w.ax.tick_params(labelsize = 13.5)
+    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 15.5)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")

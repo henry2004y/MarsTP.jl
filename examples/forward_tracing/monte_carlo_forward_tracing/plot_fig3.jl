@@ -152,29 +152,29 @@ function plot_fig3(
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 14
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 13.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 13.5
+    PyPlot.matplotlib.rcParams["font.size"] = 14.5
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 14
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 14
 
-    fig = plt.figure(figsize = (12.2, 14.4))
-    gs = fig.add_gridspec(3, 2; left = 0.08, right = 0.88, top = 0.91, bottom = 0.06, hspace = 0.32, wspace = 0.36)
+    fig, axes = plt.subplots(3, 2; figsize = (9.9, 14.2), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.01, h_pad = 0.03, wspace = 0.01, hspace = 0.03)
 
-    ax_a = fig.add_subplot(gs[1, 1])
-    ax_b = fig.add_subplot(gs[2, 1])
-    ax_c = fig.add_subplot(gs[3, 1])
-    ax_d = fig.add_subplot(gs[1, 2])
-    ax_e = fig.add_subplot(gs[2, 2])
-    ax_f = fig.add_subplot(gs[3, 2])
+    ax_a = axes[1, 1]
+    ax_b = axes[2, 1]
+    ax_c = axes[3, 1]
+    ax_d = axes[1, 2]
+    ax_e = axes[2, 2]
+    ax_f = axes[3, 2]
 
     # Column headers
-    fig.text(0.26, 0.96, "O\$_2^+\$ trajectories"; fontsize = 17.5, fontweight = "bold", ha = "center", va = "center")
-    fig.text(0.70, 0.96, "Local distributions\n(\$−2, 0, 0\$) \$R_M\$"; fontsize = 17.5, fontweight = "bold", ha = "center", va = "center")
+    ax_a.set_title("O\$_2^+\$ trajectories"; fontsize = 18.5, fontweight = "bold", pad = 16)
+    ax_d.set_title("Local distributions\n(\$−2, 0, 0\$) \$R_M\$"; fontsize = 18.5, fontweight = "bold", pad = 12)
 
     # Left column: (a) XZ, (b) XY, (c) YZ
     for (ax, plane, tag, xlabel_str, ylabel_str, det_xy) in (
-            (ax_a, "XZ", "a", "\$X_{MSE}\$ (\$R_M\$)", "\$Z_{MSE}\$ (\$R_M\$)", (-2.0, 0.0)),
-            (ax_b, "XY", "b", "\$X_{MSE}\$ (\$R_M\$)", "\$Y_{MSE}\$ (\$R_M\$)", (-2.0, 0.0)),
-            (ax_c, "YZ", "c", "\$Y_{MSE}\$ (\$R_M\$)", "\$Z_{MSE}\$ (\$R_M\$)", (0.0, 0.0)),
+            (ax_a, "XZ", "(a)", "\$X_{MSE}\$ (\$R_M\$)", "\$Z_{MSE}\$ (\$R_M\$)", (-2.0, 0.0)),
+            (ax_b, "XY", "(b)", "\$X_{MSE}\$ (\$R_M\$)", "\$Y_{MSE}\$ (\$R_M\$)", (-2.0, 0.0)),
+            (ax_c, "YZ", "(c)", "\$Y_{MSE}\$ (\$R_M\$)", "\$Z_{MSE}\$ (\$R_M\$)", (0.0, 0.0)),
         )
         _draw_blue_trajectories!(ax, paths, plane)
         _draw_mars_and_boundaries!(ax, plane; xmin = -4.0)
@@ -187,23 +187,23 @@ function plot_fig3(
         ax.set_aspect("equal")
         ax.set_xticks(-4:2:4)
         ax.set_yticks(-4:2:4)
-        ax.tick_params(labelsize = 13.5)
-        ax.set_xlabel(xlabel_str; fontsize = 15.5)
-        ax.set_ylabel(ylabel_str; fontsize = 15.5)
-        ax.text(-0.14, 1.03, tag; transform = ax.transAxes, fontsize = 18, fontweight = "bold", va = "bottom", ha = "left")
+        ax.tick_params(labelsize = 14)
+        ax.set_xlabel(xlabel_str; fontsize = 16)
+        ax.set_ylabel(ylabel_str; fontsize = 16)
+        ax.text(-0.16, 1.02, tag; transform = ax.transAxes, fontsize = 20, fontweight = "bold", va = "bottom", ha = "left")
     end
 
     # Annotations on panel a
     pe = PyPlot.PyCall.pyimport("matplotlib.patheffects")
-    txt_det = ax_a.text(-2.0, 0.55, "Detector"; fontsize = 15.5, fontweight = "bold", ha = "center", va = "bottom", zorder = 10)
+    txt_det = ax_a.text(-2.0, 0.55, "Detector"; fontsize = 16, fontweight = "bold", ha = "center", va = "bottom", zorder = 10)
     txt_det.set_path_effects([pe.withStroke(linewidth = 2.8, foreground = "white")])
-    ax_a.text(0.85, 2.55, "Plume"; fontsize = 15, ha = "center", va = "center", zorder = 10)
+    ax_a.text(0.85, 2.55, "Plume"; fontsize = 15.5, ha = "center", va = "center", zorder = 10)
     ax_a.annotate(
         "", xy = (3.45, 2.6), xytext = (3.45, 0.8),
         arrowprops = Dict("arrowstyle" => "-|>", "color" => "black", "lw" => 2.0, "mutation_scale" => 16),
         zorder = 10,
     )
-    ax_a.text(3.25, 1.7, "\$E_{sw}\$"; fontsize = 16, ha = "right", va = "center")
+    ax_a.text(3.25, 1.7, "\$E_{sw}\$"; fontsize = 16.5, ha = "right", va = "center")
 
     # (d) Reduced VDF in Vx-Vz on [-50, 50] km/s
     ax_d.set_facecolor("black")
@@ -219,32 +219,34 @@ function plot_fig3(
     ax_d.set_aspect("equal")
     ax_d.set_xticks(-50:25:50)
     ax_d.set_yticks(-50:25:50)
-    ax_d.tick_params(labelsize = 13.5)
-    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 15.5)
-    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 15.5)
-    ax_d.text(-0.14, 1.03, "d"; transform = ax_d.transAxes, fontsize = 18, fontweight = "bold", va = "bottom", ha = "left")
+    ax_d.tick_params(labelsize = 14)
+    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 16)
+    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 16)
+    ax_d.text(-0.18, 1.02, "(d)"; transform = ax_d.transAxes, fontsize = 20, fontweight = "bold", va = "bottom", ha = "left")
 
     u_str = @sprintf("\$U_{bulk} = (%.1f, %.1f, %.1f)\$ km s\$^{-1}\$\n\$T = %.2f\$ eV", d.u_bulk_kms[1], d.u_bulk_kms[2], d.u_bulk_kms[3], d.T_eV)
-    ax_d.text(0.04, 0.93, u_str; transform = ax_d.transAxes, color = "white", fontsize = 13, va = "top", ha = "left", linespacing = 1.4)
+    ax_d.text(0.04, 0.93, u_str; transform = ax_d.transAxes, color = "white", fontsize = 13.5, va = "top", ha = "left", linespacing = 1.4)
     cax_d = ax_d.inset_axes([1.035, 0.0, 0.046, 1.0])
     cb_d = fig.colorbar(im_d; cax = cax_d)
-    cb_d.ax.tick_params(labelsize = 13)
-    cb_d.set_label("\$\\int f\\,dv_y\$ [cm\$^{-3}\$ (km s\$^{-1}\$)\$^{-2}\$]"; fontsize = 14)
+    cb_d.ax.tick_params(labelsize = 13.5)
+    cb_d.set_label("\$\\int f\\,dv_y\$ [cm\$^{-3}\$ (km s\$^{-1}\$)\$^{-2}\$]"; fontsize = 14.5)
 
     # (e) 1D PSD vs Energy step plot
     pos_e = d.psd_1d .> 0.0
     if any(pos_e)
-        ax_e.step(d.ec[pos_e], d.psd_1d[pos_e]; where = "mid", color = "black", lw = 1.8)
+        ax_e.step(d.ec[pos_e], d.psd_1d[pos_e]; where = "mid", color = "black", lw = 1.9)
     end
     ax_e.set_xscale("log")
     ax_e.set_yscale("log")
     ax_e.set_xlim(4.0, 3.5e3)
     ax_e.set_ylim(1.0e-21, 1.0e-5)
     ax_e.set_yticks(10.0 .^ (-21:2:-5))
-    ax_e.tick_params(labelsize = 13.5)
-    ax_e.set_xlabel("Energy (eV)"; fontsize = 15.5)
-    ax_e.set_ylabel("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 15.5)
-    ax_e.text(-0.14, 1.03, "e"; transform = ax_e.transAxes, fontsize = 18, fontweight = "bold", va = "bottom", ha = "left")
+    ax_e.grid(true; which = "major", ls = "--", lw = 0.75, color = "0.72", alpha = 0.85)
+    ax_e.grid(true; which = "minor", ls = ":", lw = 0.5, color = "0.85", alpha = 0.65)
+    ax_e.tick_params(labelsize = 14)
+    ax_e.set_xlabel("Energy (eV)"; fontsize = 16)
+    ax_e.set_ylabel("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 16)
+    ax_e.text(-0.18, 1.02, "(e)"; transform = ax_e.transAxes, fontsize = 20, fontweight = "bold", va = "bottom", ha = "left")
 
     # (f) 2D Energy vs Pitch angle PSD
     ax_f.set_facecolor("black")
@@ -256,17 +258,17 @@ function plot_fig3(
     ax_f.set_xlim(0.0, 180.0)
     ax_f.set_ylim(6.0, 3.0e3)
     ax_f.set_xticks(0:30:180)
-    ax_f.tick_params(labelsize = 13.5)
-    ax_f.set_xlabel("Pitch angle (deg)"; fontsize = 15.5)
-    ax_f.set_ylabel("Energy (eV)"; fontsize = 15.5)
-    ax_f.text(-0.14, 1.03, "f"; transform = ax_f.transAxes, fontsize = 18, fontweight = "bold", va = "bottom", ha = "left")
+    ax_f.tick_params(labelsize = 14)
+    ax_f.set_xlabel("Pitch angle (deg)"; fontsize = 16)
+    ax_f.set_ylabel("Energy (eV)"; fontsize = 16)
+    ax_f.text(-0.18, 1.02, "(f)"; transform = ax_f.transAxes, fontsize = 20, fontweight = "bold", va = "bottom", ha = "left")
 
     b_str = @sprintf("\$B = (%.2f, %.2f, %.2f)\$ nT", d.b_nT[1], d.b_nT[2], d.b_nT[3])
-    ax_f.text(0.04, 0.92, b_str; transform = ax_f.transAxes, color = "white", fontsize = 13, va = "top", ha = "left")
+    ax_f.text(0.04, 0.92, b_str; transform = ax_f.transAxes, color = "white", fontsize = 13.5, va = "top", ha = "left")
     cax_f = ax_f.inset_axes([1.035, 0.0, 0.046, 1.0])
     cb_f = fig.colorbar(im_f; cax = cax_f)
-    cb_f.ax.tick_params(labelsize = 13)
-    cb_f.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 14)
+    cb_f.ax.tick_params(labelsize = 13.5)
+    cb_f.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 14.5)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
