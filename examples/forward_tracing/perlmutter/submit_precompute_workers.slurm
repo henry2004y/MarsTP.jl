@@ -34,3 +34,4 @@ fi
 julia --threads="$JULIA_NUM_THREADS" --project=. \
     examples/forward_tracing/perlmutter/precompute_chunk_worker.jl \
     "$OUT_PREFIX" "$CHUNK_ID" "$PER_CELL" "$CELL_STRIDE" "$FIELDS_PATH"
+

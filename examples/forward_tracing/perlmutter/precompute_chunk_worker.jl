@@ -90,3 +90,4 @@ if abspath(PROGRAM_FILE) == @__FILE__
     fields_path = ARGS[5]
     run_precompute_worker(base_prefix, k, per_cell, cell_stride, fields_path)
 end
+

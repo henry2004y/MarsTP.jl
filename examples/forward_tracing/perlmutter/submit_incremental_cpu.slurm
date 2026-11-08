@@ -59,3 +59,4 @@ echo "=================================================================="
 julia --threads="$JULIA_NUM_THREADS" --project=. \
     examples/forward_tracing/monte_carlo_forward_tracing/run_incremental_chunks.jl \
     "$OUT_PREFIX" "$N_CHUNKS" "$PER_CELL" "$CELL_STRIDE" "$SAVE_MODE" "$REL_TOL" "$FIELDS_PATH"
+

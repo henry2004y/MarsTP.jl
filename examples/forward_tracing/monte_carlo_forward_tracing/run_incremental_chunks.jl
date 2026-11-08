@@ -52,30 +52,31 @@ function compute_chunk_convergence(prev_jld2::AbstractString, curr_jld2::Abstrac
     end
 end
 
-function plot_convergence_history(history::Vector{Dict{String, Any}}, out_png::AbstractString)
+function plot_convergence_history(history::AbstractVector, out_png::AbstractString)
     length(history) >= 2 || return nothing
-    ks = [Int(h["cumulative_chunks"]) for h in history[2:end]]
     n_tot = [Int(h["cumulative_particles"]) / 1.0e6 for h in history[2:end]]
-    fig, ax = plt.subplots(figsize = (7.5, 4.8), layout = "constrained")
+    fig, ax = plt.subplots(figsize = (8.8, 5.4), layout = "constrained")
     series = [
-        ("orbit_log_def_rel_l2", "Circular Orbit log10(DEF)", "o-"),
-        ("orbit_w_conv_rel_l2", "Circular Orbit <ε_C>", "s-"),
-        ("tail_log_def_rel_l2", "Cross-Tail log10(DEF)", "^-"),
-        ("tail_ux_rel_l2", "Cross-Tail Bulk U_x", "d-"),
-        ("tail_w_hall_rel_l2", "Cross-Tail <ε_H>", "v--"),
+        ("fig3_log_def_rel_l2", "Detector (-2,0,0) \$\\log_{10}(\\mathrm{DEF})\$", "p-"),
+        ("orbit_log_def_rel_l2", "Circular Orbit \$\\log_{10}(\\mathrm{DEF})\$", "o-"),
+        ("orbit_w_conv_rel_l2", "Circular Orbit \$\\langle\\varepsilon_C\\rangle\$", "s-"),
+        ("tail_log_def_rel_l2", "Cross-Tail \$\\log_{10}(\\mathrm{DEF})\$", "^-"),
+        ("tail_ux_rel_l2", "Cross-Tail Bulk \$U_x\$", "d-"),
     ]
     for (key, label, style) in series
         vals = [Float64(get(h["metrics"], key, NaN)) * 100.0 for h in history[2:end]]
-        ax.plot(n_tot, vals, style; lw = 1.8, ms = 6, label = label)
+        ax.plot(n_tot, vals, style; lw = 2.0, ms = 6.5, label = label)
     end
-    ax.set_xlabel("Cumulative Traced Particles (Millions)")
-    ax.set_ylabel("Chunk-to-Chunk Relative L2 Change (%)")
-    ax.set_title("Incremental Monte Carlo Statistical Convergence")
+    ax.axhline(3.0; color = "0.35", ls = "--", lw = 1.4, label = "3% convergence threshold")
+    ax.set_xlabel("Cumulative Traced Particles (Millions)"; fontsize = 15)
+    ax.set_ylabel("Chunk-to-Chunk Relative \$L_2\$ Change (%)"; fontsize = 15)
+    ax.set_title("Incremental Monte Carlo Statistical Convergence"; fontsize = 16, fontweight = "bold")
     ax.set_yscale("log")
+    ax.tick_params(axis = "both", which = "major", labelsize = 13.5)
     ax.grid(true; which = "both", alpha = 0.3)
-    ax.legend(loc = "best", frameon = false)
+    ax.legend(loc = "upper right", frameon = true, facecolor = "white", framealpha = 0.9, fontsize = 11.5)
     mkpath(dirname(abspath(out_png)))
-    fig.savefig(out_png; dpi = 200)
+    fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
     plt.close(fig)
     return out_png
 end
@@ -112,6 +113,13 @@ function run_incremental_chunks(
         cdir = @sprintf("%s_chunk_%02d", base_prefix, k)
         c_paper = @sprintf("%s_chunk_%02d_paper", base_prefix, k)
         pdir = @sprintf("%s_cum_%02d_paper", base_prefix, k)
+        parent_d = dirname(abspath(base_prefix))
+        chunk_tag = @sprintf("%s_chunk_%02d", basename(abspath(base_prefix)), k)
+        while !isdir(cdir) && isdir(parent_d) && any(name -> startswith(name, chunk_tag * "_tmp_"), readdir(parent_d))
+            println("Waiting for parallel precompute worker to publish $cdir ...")
+            flush(stdout)
+            sleep(5.0)
+        end
         comp_path = joinpath(cdir, "completion.toml")
         c_paper_jld = joinpath(c_paper, "paper_analysis.jld2")
         has_valid_c_paper = isfile(c_paper_jld) && jldopen(f -> haskey(f, "raw_n_chunks"), c_paper_jld, "r")

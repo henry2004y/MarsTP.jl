@@ -266,22 +266,22 @@ end
                             ang_rad = atan(c[3], c[1])
                             ang_deg = mod(rad2deg(ang_rad), 360.0)
                             if abs(ang_deg - 90.0) <= 6.0
-                                (5000.0 <= energy_eV <= 18000.0) && (50.0 <= t_mid <= 180.0) && (ec > 0.8 * et) && (eh > 0.0)
+                                (zmin >= 0.65 * Rm) && (5000.0 <= energy_eV <= 18000.0) && (50.0 <= t_mid <= 180.0) && (ec > 0.8 * et) && (eh > 0.0)
                             elseif abs(ang_deg - 120.0) <= 6.0
-                                (1500.0 <= energy_eV <= 6500.0) && (120.0 <= t_mid <= 400.0) && (ec > 0.65 * et) && (eh > 50.0)
+                                (zmin >= 0.65 * Rm) && (1500.0 <= energy_eV <= 6500.0) && (120.0 <= t_mid <= 400.0) && (ec > 0.65 * et) && (eh > 50.0)
                             elseif abs(ang_deg - 150.0) <= 6.0
-                                (250.0 <= energy_eV <= 1200.0) && (180.0 <= t_mid <= 600.0) && (ec > 0.45 * et) && (eh > 20.0)
+                                (zmin >= 0.65 * Rm) && (250.0 <= energy_eV <= 1200.0) && (180.0 <= t_mid <= 600.0) && (ec > 0.45 * et) && (eh > 20.0) && (ea > 0.0)
                             else
                                 energy_eV >= min_rep_energy_eV
                             end
                         else
                             y_Rm = c[2] / Rm
                             if abs(y_Rm) < 0.15
-                                # Current sheet center: positive Hall work (accelerating), 120-350 eV
-                                (110.0 <= energy_eV <= 350.0) && (150.0 <= t_mid <= 500.0) && (eh > 25.0) && (ec > 60.0) && (ea > 0.0)
+                                # Current sheet center: positive Hall work (accelerating), 90-400 eV
+                                (zmin >= 0.35 * Rm) && (90.0 <= energy_eV <= 400.0) && (120.0 <= t_mid <= 550.0) && (eh > 20.0) && (ec > 50.0) && (ea > -25.0) && (et > 75.0)
                             elseif y_Rm < -0.35
-                                # Lobe (Y = -0.5 Rm): negative Hall work (decelerating), 80-250 eV
-                                (70.0 <= energy_eV <= 260.0) && (200.0 <= t_mid <= 600.0) && (eh < -15.0) && (ec > 70.0) && (ea > 0.0)
+                                # Lobe (Y = -0.5 Rm): negative Hall work (decelerating), 70-260 eV
+                                (zmin >= -0.35 * Rm) && (70.0 <= energy_eV <= 260.0) && (180.0 <= t_mid <= 600.0) && (eh < -15.0) && (ec > 70.0) && (ea > -25.0) && (et > 50.0)
                             else
                                 energy_eV >= min_rep_energy_eV
                             end

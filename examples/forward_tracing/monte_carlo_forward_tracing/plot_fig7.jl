@@ -124,6 +124,10 @@ function plot_fig7(
         ax_p.plot(t_rel, prof.power_gradpe_eV_s .* qe; color = _COL_EA, lw = 1.8, label = "\$P_A\$")
         ax_p.plot(t_rel, prof.power_total_eV_s .* qe; color = "black", ls = "--", lw = 1.8, label = "\$P_T\$")
         ax_p.set_yscale("symlog"; linthresh = 1.0e-19, linscale = 0.8)
+        p_vals = vcat(prof.power_conv_eV_s, prof.power_hall_eV_s, prof.power_gradpe_eV_s, prof.power_total_eV_s) .* qe
+        p_lo = min(minimum(p_vals) * 1.25, -1.6e-19)
+        p_hi = max(maximum(p_vals) * 1.25, 1.6e-19)
+        ax_p.set_ylim(p_lo, p_hi)
         ax_p.set_xlim(0.0, t_end * 1.04)
         ax_p.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = 18.5, length = 7.5, width = 1.4)
         ax_p.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
@@ -168,6 +172,56 @@ function plot_fig7(
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
     plt.close(fig)
     println("Saved Figure 7 to ", abspath(out_png))
+    flush(stdout)
+
+    # If running inside an incremental chunk job and a parallel precompute worker
+    # is actively tracing/distilling the next chunk (k + 1), wait for it to publish
+    # unless the current cumulative chunk k has already met the 3% convergence threshold.
+    m_cum = match(r"^(.*)_cum_(\d+)_paper$", String(paper_dir))
+    if m_cum !== nothing
+        base_pref = m_cum.captures[1]
+        k_cur = parse(Int, m_cum.captures[2])
+        already_converged = false
+        if k_cur >= 2
+            prev_jld = @sprintf("%s_cum_%02d_paper/paper_analysis.jld2", base_pref, k_cur - 1)
+            curr_jld = joinpath(paper_dir, "paper_analysis.jld2")
+            if isfile(prev_jld) && isfile(curr_jld)
+                _r(a, b, m) = begin
+                    num = 0.0; den = 0.0; n = 0
+                    for i in eachindex(a, b)
+                        va = Float64(a[i]); vb = Float64(b[i])
+                        if isfinite(va) && isfinite(vb) && (abs(va) > m || abs(vb) > m)
+                            num += (vb - va)^2; den += 0.5 * (va^2 + vb^2); n += 1
+                        end
+                    end
+                    (n > 0 && den > 0) ? sqrt(num / den) : NaN
+                end
+                already_converged = jldopen(prev_jld, "r") do f1
+                    jldopen(curr_jld, "r") do f2
+                        vals = [
+                            _r(log10.(max.(f1["fig3_omni_def"], 1.0)), log10.(max.(f2["fig3_omni_def"], 1.0)), 2.0),
+                            _r(log10.(max.(f1["orbit_def"], 1.0)), log10.(max.(f2["orbit_def"], 1.0)), 2.0),
+                            _r(f1["orbit_w_conv_eV"], f2["orbit_w_conv_eV"], 5.0),
+                            _r(log10.(max.(f1["tail_def"], 1.0)), log10.(max.(f2["tail_def"], 1.0)), 2.0),
+                            _r(f1["tail_bulk_vel_ms"][1, :], f2["tail_bulk_vel_ms"][1, :], 100.0),
+                        ]
+                        all(v -> isfinite(v) && v <= 0.03, vals)
+                    end
+                end
+            end
+        end
+        if !already_converged
+            k_next = k_cur + 1
+            parent_d = dirname(abspath(base_pref))
+            next_tag = @sprintf("%s_chunk_%02d", basename(abspath(base_pref)), k_next)
+            next_cdir = @sprintf("%s_chunk_%02d", base_pref, k_next)
+            while !isdir(next_cdir) && isdir(parent_d) && any(name -> startswith(name, next_tag * "_tmp_"), readdir(parent_d))
+                println("Waiting for parallel precompute worker to publish $next_cdir ...")
+                flush(stdout)
+                sleep(5.0)
+            end
+        end
+    end
     return out_png
 end
 

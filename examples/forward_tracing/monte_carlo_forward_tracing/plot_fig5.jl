@@ -118,8 +118,16 @@ function plot_fig5(
         t_rel = prof.t .- prof.t[1]
         t_end = t_rel[end]
 
-        # Marker indices along time
-        m_idxs = [clamp(searchsortedlast(t_rel, f * t_end), 2, length(t_rel) - 1) for f in frac_markers]
+        # Marker indices along time (clamped to points inside the visible XZ plot box)
+        vis_idxs = findall(i -> (xlim_tr[1] + 0.12 <= xs[i] <= xlim_tr[2] - 0.12) && (0.62 <= zs[i] <= 2.85), eachindex(t_rel))
+        m_idxs = map(frac_markers) do f
+            idx0 = clamp(searchsortedlast(t_rel, f * t_end), 2, length(t_rel) - 1)
+            if isempty(vis_idxs) || (idx0 in vis_idxs)
+                return idx0
+            end
+            _, best_pos = findmin(i -> abs(t_rel[i] - f * t_end), vis_idxs)
+            return vis_idxs[best_pos]
+        end
 
         # Column 1: XZ trajectory + Mars disk + E vectors
         ax_tr = axes[row, 1]
