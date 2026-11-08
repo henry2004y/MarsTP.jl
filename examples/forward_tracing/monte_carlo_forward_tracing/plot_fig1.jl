@@ -121,18 +121,26 @@ function plot_fig1(
     end
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 16.5
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 16
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 16
+    PyPlot.matplotlib.rcParams["font.size"] = 18
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
+    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
+    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
+    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
+    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
 
     fig, axes = plt.subplots(2, 2; figsize = (12.0, 12.2), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.04, wspace = 0.03, hspace = 0.04)
 
     panels = (
-        (axes[1, 1], b_mag, bx_u, by_u, "a", "Magnetic field, XY", "Y (Rm)", L"$|\mathbf{B}|$ (nT)", (1.0e-1, 4.5e1)),
-        (axes[1, 2], ec_xz, ecx_u, ecz_u, "b", "Convective electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{C,xz}|$ (mV/m)", (1.0e-9, 5.0e0)),
-        (axes[2, 1], eh_xz, ehx_u, ehz_u, "c", "Hall electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{H,xz}|$ (mV/m)", (2.0e-8, 3.0e0)),
-        (axes[2, 2], ea_xz, eax_u, eaz_u, "d", "Ambipolar electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{A,xz}|$ (mV/m)", (1.5e-8, 5.0e-1)),
+        (axes[1, 1], b_mag, bx_u, by_u, "a", "Magnetic field, XY", "Y (Rm)", L"$|\mathbf{B}|$ (nT)", (1.0e0, 4.0e1)),
+        (axes[1, 2], ec_xz, ecx_u, ecz_u, "b", "Convective electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{C,xz}|$ (mV/m)", (1.0e-2, 4.0e0)),
+        (axes[2, 1], eh_xz, ehx_u, ehz_u, "c", "Hall electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{H,xz}|$ (mV/m)", (1.0e-5, 1.0e0)),
+        (axes[2, 2], ea_xz, eax_u, eaz_u, "d", "Ambipolar electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{A,xz}|$ (mV/m)", (2.0e-5, 3.0e-1)),
     )
 
     th = range(0.0, 2pi; length = 240)
@@ -153,21 +161,22 @@ function plot_fig1(
         ax.set_aspect("equal")
         ax.set_xticks([-4, -2, 0, 2])
         ax.set_yticks([-4, -2, 0, 2, 4])
-        ax.tick_params(labelsize = 16)
-        ax.set_xlabel("X (Rm)"; fontsize = 18.5)
-        ax.set_ylabel(ylabel_str; fontsize = 18.5)
-        ax.set_title(title_str; fontsize = 19.5, pad = 9)
+        ax.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+        ax.set_xlabel("X (Rm)"; fontsize = 19.5)
+        ax.set_ylabel(ylabel_str; fontsize = 19.5)
+        ax.set_title(title_str; fontsize = 20.5, pad = 9)
         ax.text(
             0.03, 0.95, tag;
-            transform = ax.transAxes, fontsize = 21, fontweight = "bold",
+            transform = ax.transAxes, fontsize = 22, fontweight = "bold",
             va = "top", ha = "left",
             bbox = Dict("boxstyle" => "square,pad=0.2", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.9),
             zorder = 10,
         )
         cax = ax.inset_axes([1.035, 0.0, 0.048, 1.0])
         cb = fig.colorbar(im; cax = cax)
-        cb.ax.tick_params(labelsize = 15.5)
-        cb.set_label(cbar_lbl; fontsize = 18)
+        cb.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
+        cb.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
+        cb.set_label(cbar_lbl; fontsize = 19)
     end
 
     mkpath(dirname(abspath(out_png)))

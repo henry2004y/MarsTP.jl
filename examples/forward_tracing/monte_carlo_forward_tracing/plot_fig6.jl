@@ -25,7 +25,7 @@ if !isdefined(@__MODULE__, :_load_sampled_trajectories)
 end
 
 function plot_fig6(
-        paper_dir::AbstractString = joinpath(pwd(), "outputs", "perlmutter_runs", "mc_400km_without_crustal_cum_005_paper"),
+        paper_dir::AbstractString = _default_paper_dir(),
         out_png::AbstractString = joinpath(paper_dir, "fig6.png");
         raw_run_dir = nothing,
     )
@@ -77,9 +77,17 @@ function plot_fig6(
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 16
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 15.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 15.5
+    PyPlot.matplotlib.rcParams["font.size"] = 18
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
+    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
+    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
+    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
+    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
 
     fig, axes = plt.subplots(4, 2; figsize = (13.4, 12.6), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.03, wspace = 0.03, hspace = 0.03)
@@ -99,7 +107,7 @@ function plot_fig6(
     ax_a.plot([-1.0, 1.0], [d.tail_z_Rm, d.tail_z_Rm]; color = "#d6192b", lw = 2.2, zorder = 8)
     ax_a.text(
         0.0, d.tail_z_Rm + 0.14, "Virtual trajectory";
-        color = "#d6192b", fontsize = 15.5, ha = "center", va = "bottom",
+        color = "#d6192b", fontsize = 16.5, ha = "center", va = "bottom",
         bbox = Dict("boxstyle" => "square,pad=0.12", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.78),
         zorder = 9,
     )
@@ -108,10 +116,10 @@ function plot_fig6(
     ax_a.set_aspect("equal")
     ax_a.set_xticks(-2:1:2)
     ax_a.set_yticks(0.0:0.5:2.0)
-    ax_a.tick_params(labelsize = 15.5)
-    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 17.5)
-    ax_a.set_title("\$X_{MSE} = −2\\,R_M\$"; fontsize = 18.5, pad = 7)
-    ax_a.text(0.02, 0.93, "a"; transform = ax_a.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+    ax_a.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 19)
+    ax_a.set_title("\$X_{MSE} = −2\\,R_M\$"; fontsize = 20, pad = 7)
+    ax_a.text(0.02, 0.93, "a"; transform = ax_a.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left", zorder = 10)
 
     # (b) Magnetic field (nT)
     ax_b.axhline(0.0; color = "0.65", lw = 0.8)
@@ -120,10 +128,10 @@ function plot_fig6(
     ax_b.set_xlim(-1.0, 1.0)
     ax_b.set_ylim(-15.0, 17.0)
     ax_b.set_xticks(-1.0:0.5:1.0)
-    ax_b.tick_params(labelsize = 15.5)
-    ax_b.set_ylabel("Magnetic field (nT)"; fontsize = 17.5)
-    ax_b.legend(loc = "center right", frameon = false, fontsize = 16)
-    ax_b.text(0.03, 0.93, "b"; transform = ax_b.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
+    ax_b.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+    ax_b.set_ylabel("Magnetic field (nT)"; fontsize = 19)
+    ax_b.legend(loc = "center right", frameon = false, fontsize = 17)
+    ax_b.text(0.03, 0.93, "b"; transform = ax_b.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
 
     # (c) PSD vs Y_MSE and Energy with horizontal inset colorbar
     psd_plot = copy(permutedims(d.psd))
@@ -134,15 +142,17 @@ function plot_fig6(
     ax_c.set_xlim(-1.0, 1.0)
     ax_c.set_ylim(1.0e1, 1.0e4)
     ax_c.set_xticks(-1.0:0.5:1.0)
-    ax_c.tick_params(labelbottom = false, labelsize = 15.5)
-    ax_c.set_ylabel("Energy (eV)"; fontsize = 17.5)
-    ax_c.text(0.03, 0.93, "c"; transform = ax_c.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
+    ax_c.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = 18.5, length = 7.5, width = 1.4)
+    ax_c.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
+    ax_c.set_ylabel("Energy (eV)"; fontsize = 19)
+    ax_c.text(0.03, 0.93, "c"; transform = ax_c.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
 
-    cax_c = ax_c.inset_axes([0.22, 0.82, 0.72, 0.065])
+    cax_c = ax_c.inset_axes([0.20, 0.81, 0.75, 0.068])
     cb_c = fig.colorbar(im_c; cax = cax_c, orientation = "horizontal")
     cb_c.ax.xaxis.set_ticks_position("bottom")
-    cb_c.ax.tick_params(labelsize = 13, pad = 1.5)
-    cb_c.ax.set_title("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 14, pad = 3.0)
+    cb_c.ax.tick_params(which = "major", labelsize = 14.5, length = 4.5, width = 1.1, pad = 1.5)
+    cb_c.ax.tick_params(which = "minor", length = 2.5, width = 0.9)
+    cb_c.ax.set_title("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 15.5, pad = 3.0)
 
     # (d) Bulk velocity (km/s)
     ax_d.axhline(0.0; color = "0.65", lw = 0.8)
@@ -161,10 +171,10 @@ function plot_fig6(
     ax_d.set_xlim(-1.0, 1.0)
     ax_d.set_ylim(-42.0, 52.0)
     ax_d.set_xticks(-1.0:0.5:1.0)
-    ax_d.tick_params(labelbottom = false, labelsize = 15.5)
-    ax_d.set_ylabel("Bulk velocity (km s\$^{-1}\$)"; fontsize = 17.5)
-    ax_d.legend(loc = "center left", bbox_to_anchor = (1.01, 0.5), frameon = false, fontsize = 16)
-    ax_d.text(0.03, 0.93, "d"; transform = ax_d.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
+    ax_d.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = 18.5, length = 7.5, width = 1.4)
+    ax_d.set_ylabel("Bulk velocity (km s\$^{-1}\$)"; fontsize = 19)
+    ax_d.legend(loc = "center left", bbox_to_anchor = (1.01, 0.5), frameon = false, fontsize = 17)
+    ax_d.text(0.03, 0.93, "d"; transform = ax_d.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
 
     # (e)-(h) Mean cumulative work 2x2 grid on linear [-300, 300] eV bwr scale
     work_panels = (
@@ -180,19 +190,20 @@ function plot_fig6(
         ax.set_xlim(-1.0, 1.0)
         ax.set_ylim(1.0e1, 1.0e4)
         ax.set_xticks(-1.0:0.5:1.0)
-        ax.tick_params(labelsize = 15.5)
+        ax.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+        ax.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
         if show_x
-            ax.set_xlabel("\$Y_{MSE}\$ (\$R_M\$)"; fontsize = 18)
+            ax.set_xlabel("\$Y_{MSE}\$ (\$R_M\$)"; fontsize = 19.5)
         else
             ax.tick_params(labelbottom = false)
         end
         if show_y
-            ax.set_ylabel("Energy (eV)"; fontsize = 17.5)
+            ax.set_ylabel("Energy (eV)"; fontsize = 19)
         else
             ax.tick_params(labelleft = false)
         end
-        ax.text(0.03, 0.93, tag; transform = ax.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "left")
-        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, fontsize = 20, va = "top", ha = "right")
+        ax.text(0.03, 0.93, tag; transform = ax.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
+        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, fontsize = 21, va = "top", ha = "right")
     end
 
     fig.canvas.draw()
@@ -203,8 +214,8 @@ function plot_fig6(
     cbar_w_ax = ax_h.inset_axes([1.035, 0.0, 0.042, y_top_rel])
     cb_w = fig.colorbar(im_w; cax = cbar_w_ax)
     cb_w.set_ticks(-300:100:300)
-    cb_w.ax.tick_params(labelsize = 15.5)
-    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 18)
+    cb_w.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
+    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 19)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
@@ -214,7 +225,7 @@ function plot_fig6(
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    pdir = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "perlmutter_runs", "mc_400km_without_crustal_cum_005_paper")
+    pdir = length(ARGS) >= 1 ? ARGS[1] : _default_paper_dir()
     out = length(ARGS) >= 2 ? ARGS[2] : joinpath(pdir, "fig6.png")
     rdir = length(ARGS) >= 3 ? ARGS[3] : nothing
     plot_fig6(pdir, out; raw_run_dir = rdir)

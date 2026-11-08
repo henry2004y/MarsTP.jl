@@ -26,7 +26,7 @@ if !isdefined(@__MODULE__, :_load_sampled_trajectories)
 end
 
 function plot_fig4(
-        paper_dir::AbstractString = joinpath(pwd(), "outputs", "perlmutter_runs", "mc_400km_without_crustal_cum_005_paper"),
+        paper_dir::AbstractString = _default_paper_dir(),
         out_png::AbstractString = joinpath(paper_dir, "fig4.png");
         raw_run_dir = nothing,
     )
@@ -60,9 +60,17 @@ function plot_fig4(
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 16.5
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 16
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 16
+    PyPlot.matplotlib.rcParams["font.size"] = 18
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
+    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
+    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
+    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
+    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
 
     fig = plt.figure(figsize = (12.8, 13.2), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.04, hspace = 0.04)
@@ -102,18 +110,18 @@ function plot_fig4(
         else
             (-0.06, -0.14, "center", "top")
         end
-        ax_a.text(xm + dx, zm + dz, "$(ang)°"; fontsize = 16.5, color = "black", ha = ha_str, va = va_str, zorder = 9)
+        ax_a.text(xm + dx, zm + dz, "$(ang)°"; fontsize = 17, color = "black", ha = ha_str, va = va_str, zorder = 9)
     end
-    ax_a.text(2.8, -0.8, "Virtual\ntrajectory"; color = "#d6192b", fontsize = 16, ha = "center", va = "center")
+    ax_a.text(2.8, -0.8, "Virtual\ntrajectory"; color = "#d6192b", fontsize = 16.5, ha = "center", va = "center")
     ax_a.set_xlim(-4.0, 4.0)
     ax_a.set_ylim(-3.0, 4.0)
     ax_a.set_aspect("equal")
     ax_a.set_xticks(-4:2:4)
     ax_a.set_yticks(-3:1:4)
-    ax_a.tick_params(labelsize = 16)
-    ax_a.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 18.5)
-    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 18.5)
-    ax_a.text(0.03, 0.95, "a"; transform = ax_a.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
+    ax_a.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+    ax_a.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 19.5)
+    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 19.5)
+    ax_a.text(0.03, 0.95, "a"; transform = ax_a.transAxes, fontsize = 22, fontweight = "bold", va = "top", ha = "left")
 
     # (b) PSD vs Orbit Angle and Energy
     ax_b.set_facecolor("black")
@@ -125,20 +133,21 @@ function plot_fig4(
     ax_b.set_xlim(0.0, 240.0)
     ax_b.set_ylim(1.0e0, 1.0e5)
     ax_b.set_xticks(0:60:240)
-    ax_b.tick_params(labelsize = 16)
-    ax_b.set_xlabel("Orbit Angle (deg)"; fontsize = 18.5)
-    ax_b.set_ylabel("Energy (eV)"; fontsize = 18.5)
-    ax_b.text(0.03, 0.95, "b"; transform = ax_b.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "top", ha = "left")
+    ax_b.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+    ax_b.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
+    ax_b.set_xlabel("Orbit Angle (deg)"; fontsize = 19.5)
+    ax_b.set_ylabel("Energy (eV)"; fontsize = 19.5)
+    ax_b.text(0.03, 0.95, "b"; transform = ax_b.transAxes, color = "white", fontsize = 22, fontweight = "bold", va = "top", ha = "left")
 
     # Annotations on panel b
     ax_b.annotate(
         "Beam", xy = (96.0, 1.4e4), xytext = (122.0, 3.6e4),
-        color = "white", fontsize = 16.5, ha = "left", va = "center",
+        color = "white", fontsize = 17, ha = "left", va = "center",
         arrowprops = Dict("arrowstyle" => "->", "color" => "white", "lw" => 1.6),
     )
     ax_b.annotate(
         "Low-energy ions", xy = (182.0, 1.0e1), xytext = (154.0, 1.0e1),
-        color = "white", fontsize = 16.5, ha = "right", va = "center",
+        color = "white", fontsize = 17, ha = "right", va = "center",
         arrowprops = Dict("arrowstyle" => "->", "color" => "white", "lw" => 1.6),
     )
 
@@ -147,8 +156,8 @@ function plot_fig4(
     for xv in (0.0, 180.0, 240.0)
         ax_b.plot([xv, xv], [1.01, 1.07]; color = "black", lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
     end
-    ax_b.text(90.0, 1.08, "+E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 16.5, ha = "center", va = "bottom", clip_on = false)
-    ax_b.text(210.0, 1.08, "−E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 16.5, ha = "center", va = "bottom", clip_on = false)
+    ax_b.text(90.0, 1.08, "+E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 17.5, ha = "center", va = "bottom", clip_on = false)
+    ax_b.text(210.0, 1.08, "−E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 17.5, ha = "center", va = "bottom", clip_on = false)
 
     # (c)-(f) Mean cumulative work 2x2 grid
     norm_w = matplotlib.colors.SymLogNorm(linthresh = 1.0, linscale = 0.8, vmin = -1.0e4, vmax = 1.0e4, base = 10)
@@ -167,19 +176,20 @@ function plot_fig4(
         ax.set_ylim(1.0e0, 1.0e5)
         ax.set_xticks(0:60:240)
         ax.set_yticks([1.0e0, 1.0e2, 1.0e4])
-        ax.tick_params(labelsize = 16)
+        ax.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
+        ax.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
         if show_x
-            ax.set_xlabel("Orbit Angle (deg)"; fontsize = 18.5)
+            ax.set_xlabel("Orbit Angle (deg)"; fontsize = 19.5)
         else
             ax.tick_params(labelbottom = false)
         end
         if show_y
-            ax.set_ylabel("Energy (eV)"; fontsize = 18.5)
+            ax.set_ylabel("Energy (eV)"; fontsize = 19.5)
         else
             ax.tick_params(labelleft = false)
         end
-        ax.text(0.03, 0.93, tag; transform = ax.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "top", ha = "left")
-        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, color = "white", fontsize = 21, va = "top", ha = "right")
+        ax.text(0.03, 0.93, tag; transform = ax.transAxes, color = "white", fontsize = 22, fontweight = "bold", va = "top", ha = "left")
+        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, color = "white", fontsize = 22, va = "top", ha = "right")
     end
 
     fig.canvas.draw()
@@ -187,8 +197,9 @@ function plot_fig4(
 
     cbar_b_ax = ax_b.inset_axes([1.035, 0.0, 0.042, 1.0])
     cb_b = fig.colorbar(im_b; cax = cbar_b_ax)
-    cb_b.ax.tick_params(labelsize = 15.5)
-    cb_b.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 17.5)
+    cb_b.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
+    cb_b.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
+    cb_b.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 18.5)
 
     pos_d = ax_d.get_position()
     pos_f = ax_f.get_position()
@@ -196,8 +207,9 @@ function plot_fig4(
     cbar_w_ax = ax_f.inset_axes([1.035, 0.0, 0.042, y_top_rel])
     cb_w = fig.colorbar(im_w; cax = cbar_w_ax)
     cb_w.set_ticks([-1.0e4, -1.0e3, -1.0e2, -1.0e1, 0.0, 1.0e1, 1.0e2, 1.0e3, 1.0e4])
-    cb_w.ax.tick_params(labelsize = 15.5)
-    cb_w.set_label("Mean cumulative work \$\\langle\\varepsilon\\rangle\$ (eV)"; fontsize = 17.5)
+    cb_w.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
+    cb_w.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
+    cb_w.set_label("Mean cumulative work \$\\langle\\varepsilon\\rangle\$ (eV)"; fontsize = 18.5)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
@@ -207,7 +219,7 @@ function plot_fig4(
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    pdir = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "perlmutter_runs", "mc_400km_without_crustal_cum_005_paper")
+    pdir = length(ARGS) >= 1 ? ARGS[1] : _default_paper_dir()
     out = length(ARGS) >= 2 ? ARGS[2] : joinpath(pdir, "fig4.png")
     rdir = length(ARGS) >= 3 ? ARGS[3] : nothing
     plot_fig4(pdir, out; raw_run_dir = rdir)
