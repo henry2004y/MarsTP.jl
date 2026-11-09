@@ -51,9 +51,9 @@ function _draw_circled_number!(ax, x::Real, y::Real, num::Int; transform = nothi
 end
 
 function _default_paper_dir()
-    p1 = joinpath(pwd(), "outputs", "paper_figures")
+    p1 = joinpath(pwd(), "outputs", "paper_figures_with_crustal")
     isfile(joinpath(p1, "paper_analysis.jld2")) && return p1
-    return joinpath(pwd(), "outputs", "perlmutter_runs", "mc_400km_without_crustal_cum_005_paper")
+    return joinpath(pwd(), "outputs", "paper_figures_without_crustal")
 end
 
 function plot_fig5(

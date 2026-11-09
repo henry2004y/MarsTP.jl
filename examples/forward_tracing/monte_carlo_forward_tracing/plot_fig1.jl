@@ -36,7 +36,7 @@ function _resolve_fig1_field_path(vts_path::AbstractString)
 end
 
 function plot_fig1(
-        out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures", "fig1.png");
+        out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures_with_crustal", "fig1.png");
         vts_path::AbstractString = _default_fig1_field_path(),
     )
     resolved_path = _resolve_fig1_field_path(vts_path)
@@ -201,7 +201,7 @@ function plot_fig1(
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures", "fig1.png")
+    out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures_with_crustal", "fig1.png")
     vts = length(ARGS) >= 2 ? ARGS[2] : _default_fig1_field_path()
     plot_fig1(out; vts_path = vts)
 end

@@ -71,8 +71,8 @@ function _read_cell_particles_csv(csv_path::AbstractString, target_cell_id::Int)
 end
 
 function plot_fig2(
-        out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures", "fig2.png");
-        vts_path::AbstractString = MarsTP.data_path("mars_fields_without_crustal.vts"),
+        out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures_with_crustal", "fig2.png");
+        vts_path::AbstractString = MarsTP.data_path("mars_fields_with_crustal.vts"),
         run_dir::AbstractString = "",
         sampling_mode::Symbol = :maxwellian_source,
         altitude_km::Real = 400.0,
@@ -344,8 +344,8 @@ function plot_fig2(
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures", "fig2.png")
-    vts = length(ARGS) >= 2 ? ARGS[2] : MarsTP.data_path("mars_fields_without_crustal.vts")
+    out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures_with_crustal", "fig2.png")
+    vts = length(ARGS) >= 2 ? ARGS[2] : MarsTP.data_path("mars_fields_with_crustal.vts")
     mode = length(ARGS) >= 3 ? Symbol(ARGS[3]) : :maxwellian_source
     plot_fig2(out; vts_path = vts, sampling_mode = mode)
 end
