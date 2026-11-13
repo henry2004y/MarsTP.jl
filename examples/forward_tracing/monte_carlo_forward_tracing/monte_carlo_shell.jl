@@ -61,10 +61,10 @@ module ShellMonteCarlo
     const _PAPER_SLAB_BOXES = Tuple{Vec, Vec}[
         # 1. Virtual detector at (-2, 0, 0) Rm (Fig. 3d-f)
         (Vec(-2.105 * Rm, -0.105 * Rm, -0.105 * Rm), Vec(-1.895 * Rm, 0.105 * Rm, 0.105 * Rm)),
-        # 2. Cross-tail transect at X = -2.0 Rm, Y in [-1, 1] Rm, Z = +0.75 Rm (Fig. 6 & Fig. 7)
-        (Vec(-2.105 * Rm, -1.105 * Rm, 0.645 * Rm), Vec(-1.895 * Rm, 1.105 * Rm, 0.855 * Rm)),
-        # 3. Cross-tail transect at X = -1.75 Rm, Y in [-1, 1] Rm, Z = +0.75 Rm
-        (Vec(-1.855 * Rm, -1.105 * Rm, 0.645 * Rm), Vec(-1.645 * Rm, 1.105 * Rm, 0.855 * Rm)),
+        # 2. Cross-tail slab at X = -2.0 Rm, Y in [-1.45, +1.45] Rm, Z in [-0.60, +0.80] Rm (Fig. 6 & Fig. 7 + CS-centered Z scan)
+        (Vec(-2.105 * Rm, -1.555 * Rm, -0.705 * Rm), Vec(-1.895 * Rm, 1.555 * Rm, 0.905 * Rm)),
+        # 3. Cross-tail slab at X = -1.75 Rm, Y in [-1.45, +1.45] Rm, Z in [-0.60, +0.80] Rm
+        (Vec(-1.855 * Rm, -1.555 * Rm, -0.705 * Rm), Vec(-1.645 * Rm, 1.555 * Rm, 0.905 * Rm)),
     ]
 
     const _PAPER_ORBIT_BOXES = let

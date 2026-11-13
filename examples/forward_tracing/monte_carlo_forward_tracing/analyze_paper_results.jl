@@ -18,6 +18,28 @@ using MarsTP, StaticArrays, LinearAlgebra, JLD2, TOML, Printf, Statistics, Rando
 const Vec3 = SVector{3, Float64}
 const E_CHARGE = MarsTP.TP.qᵢ
 const O2P_MASS = MarsTP.TP.SpeciesDict["O2+"].m
+const TAIL_Z_SCAN_RM = Float64[-0.60, -0.50, -0.40, -0.30, -0.20, -0.10, 0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.75, 0.80]
+
+function _find_current_sheet_y_Rm(b_itp, x_Rm::Float64, z_Rm::Float64, rm_m::Float64)
+    ys = collect(range(-0.80, 0.80; length = 321))
+    bx = [b_itp(Vec3(x_Rm * rm_m, y * rm_m, z_Rm * rm_m))[1] for y in ys]
+    bt = [norm(b_itp(Vec3(x_Rm * rm_m, y * rm_m, z_Rm * rm_m))) for y in ys]
+    best_y = ys[argmin(bt)]
+    crossings = Tuple{Float64, Float64}[]
+    for i in 1:(length(ys) - 1)
+        if bx[i] * bx[i + 1] <= 0.0 && (bx[i] != 0.0 || bx[i + 1] != 0.0)
+            s = abs(bx[i]) / (abs(bx[i]) + abs(bx[i + 1]))
+            yc = ys[i] + s * (ys[i + 1] - ys[i])
+            btc = norm(b_itp(Vec3(x_Rm * rm_m, yc * rm_m, z_Rm * rm_m)))
+            push!(crossings, (btc, yc))
+        end
+    end
+    if !isempty(crossings)
+        sort!(crossings; by = first)
+        best_y = crossings[1][2]
+    end
+    return round(best_y; digits = 2)
+end
 
 mutable struct DetectorMomentsAcc
     w_tau::Float64
@@ -542,6 +564,9 @@ function _save_and_plot_paper_analysis(
         orbit20_acc::TransectAccumulators,
         tail20_acc::TransectAccumulators,
         tail175_acc::TransectAccumulators,
+        tail_z_scan_Rm::Vector{Float64} = Float64[],
+        tail20_zscan_accs::Vector{TransectAccumulators} = TransectAccumulators[],
+        b_tail20_zscan_nT::Vector{Matrix{Float64}} = Matrix{Float64}[],
         render_plots::Bool = true,
     )
     scale = 1.0 / max(n_chunks, 1)
@@ -549,6 +574,7 @@ function _save_and_plot_paper_analysis(
     orbit20_res = finalize_transect(orbit20_acc, n_chunks)
     tail20_res = finalize_transect(tail20_acc, n_chunks)
     tail175_res = finalize_transect(tail175_acc, n_chunks)
+    tail20_zscan_res = [finalize_transect(acc, n_chunks) for acc in tail20_zscan_accs]
     fig3_mom = finalize_moments(fig3_mom_acc, fig3_side^3, n_chunks)
 
     fig3_fxz_s2_m5 = raw_fig3_fxz_unscaled .* scale
@@ -663,6 +689,27 @@ function _save_and_plot_paper_analysis(
         f["fig5_rep_20"] = fig5_rep_20
         f["fig7_rep_20"] = fig7_rep_20
         f["fig7_rep_175"] = fig7_rep_175
+
+        # Multi-Z cross-tail scan at X = -2.0 Rm (centered at the current sheet Y_CS(Z) for each Z)
+        if !isempty(tail_z_scan_Rm) && !isempty(tail20_zscan_res)
+            zscan_y_Rm = [Float64[round(c[2] / rm_m; digits = 4) for c in acc.centers_m] for acc in tail20_zscan_accs]
+            zscan_y_cs_Rm = [ys_v[cld(length(ys_v), 2)] for ys_v in zscan_y_Rm]
+            f["tail_z_scan_Rm"] = tail_z_scan_Rm
+            f["tail_z_scan_y_cs_Rm"] = zscan_y_cs_Rm
+            f["tail_z_scan_y_Rm"] = zscan_y_Rm
+            f["raw_tail20_zscan"] = [_pack_transect_raw(acc) for acc in tail20_zscan_accs]
+            f["tail_z_scan_b_nT"] = b_tail20_zscan_nT
+            f["tail_z_scan_def"] = [r.def for r in tail20_zscan_res]
+            f["tail_z_scan_psd_s3_m6"] = [r.psd for r in tail20_zscan_res]
+            f["tail_z_scan_bulk_vel_ms"] = [r.bulk_vel_ms for r in tail20_zscan_res]
+            f["tail_z_scan_density_m3"] = [r.density_m3 for r in tail20_zscan_res]
+            f["tail_z_scan_w_conv_eV"] = [r.w_conv for r in tail20_zscan_res]
+            f["tail_z_scan_w_hall_eV"] = [r.w_hall for r in tail20_zscan_res]
+            f["tail_z_scan_w_gradpe_eV"] = [r.w_gradpe for r in tail20_zscan_res]
+            f["tail_z_scan_w_total_eV"] = [r.w_total for r in tail20_zscan_res]
+            f["tail_z_scan_hits"] = [r.hit_counts for r in tail20_zscan_res]
+            f["fig7_rep_zscan"] = [_pack_rep_ions((y_cs, y_cs - 0.5), ys_v, r) for (y_cs, ys_v, r) in zip(zscan_y_cs_Rm, zscan_y_Rm, tail20_zscan_res)]
+        end
     end
 
     if render_plots
@@ -683,6 +730,9 @@ function _save_and_plot_paper_analysis(
         end
         if isdefined(@__MODULE__, :plot_fig6)
             Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig6), out_dir, joinpath(out_dir, "fig6.png"))
+        end
+        if !isempty(tail_z_scan_Rm) && isdefined(@__MODULE__, :plot_fig6_z_scan)
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig6_z_scan), out_dir, joinpath(out_dir, "fig6_z_scan.png"))
         end
         if isdefined(@__MODULE__, :plot_fig7)
             Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig7), out_dir, joinpath(out_dir, "fig7.png"); vts_path = fields_path)
@@ -725,9 +775,15 @@ function run_paper_analysis(
     orbit_side = 0.2 * rm_m
 
     # 3. Cross-tail transect along Y ∈ [-1, 1] Rm at Z = +0.75 Rm (Paper Fig. 6 & 7: X = -2.0 Rm and X = -1.75 Rm)
+    #    plus fine-grained Z_MSE scan across TAIL_Z_SCAN_RM at X = -2.0 Rm centered at Y_CS(Z)
     tail_y_Rm = collect(range(-1.0, 1.0; length = 41))
     tail20_centers = [Vec3(-2.0 * rm_m, y * rm_m, 0.75 * rm_m) for y in tail_y_Rm]
     tail175_centers = [Vec3(-1.75 * rm_m, y * rm_m, 0.75 * rm_m) for y in tail_y_Rm]
+    tail20_zscan_centers = [
+        let y_cs = _find_current_sheet_y_Rm(b_itp, -2.0, z0, rm_m)
+            [Vec3(-2.0 * rm_m, (y_cs + dy) * rm_m, z0 * rm_m) for dy in tail_y_Rm]
+        end for z0 in TAIL_Z_SCAN_RM
+    ]
     tail_side = 0.2 * rm_m
 
     batch_files = _discover_batch_files(run_dirs)
@@ -754,6 +810,7 @@ function run_paper_analysis(
     worker_orbit20 = [TransectAccumulators(orbit20_centers, orbit_side, energy_edges) for _ in 1:n_workers]
     worker_tail20 = [TransectAccumulators(tail20_centers, tail_side, energy_edges) for _ in 1:n_workers]
     worker_tail175 = [TransectAccumulators(tail175_centers, tail_side, energy_edges) for _ in 1:n_workers]
+    worker_tail20_zscan = [[TransectAccumulators(c_vec, tail_side, energy_edges) for c_vec in tail20_zscan_centers] for _ in 1:n_workers]
 
     # Partition batch files across workers
     worker_batches = [String[] for _ in 1:n_workers]
@@ -769,6 +826,7 @@ function run_paper_analysis(
         acc_o20 = worker_orbit20[w]
         acc_t20 = worker_tail20[w]
         acc_t175 = worker_tail175[w]
+        acc_t20_zscan = worker_tail20_zscan[w]
 
         obs_w = seg -> begin
             dt_seg = seg.t1_s - seg.t0_s
@@ -815,6 +873,9 @@ function run_paper_analysis(
             _accumulate_transect!(acc_o20, tr.t, tr.u, rec.rate_weight_s, rec.rate_weight_s > 0 ? rec.particle_id : 0, dw_tot, dw_conv, dw_hall, dw_grad; min_rep_energy_eV = 80.0, mode = :orbit)
             _accumulate_transect!(acc_t20, tr.t, tr.u, rec.rate_weight_s, rec.particle_id, dw_tot, dw_conv, dw_hall, dw_grad; min_rep_energy_eV = 20.0, mode = :tail)
             _accumulate_transect!(acc_t175, tr.t, tr.u, rec.rate_weight_s, rec.particle_id, dw_tot, dw_conv, dw_hall, dw_grad; min_rep_energy_eV = 20.0, mode = :tail)
+            for acc_z in acc_t20_zscan
+                _accumulate_transect!(acc_z, tr.t, tr.u, rec.rate_weight_s, rec.particle_id, dw_tot, dw_conv, dw_hall, dw_grad; min_rep_energy_eV = 20.0, mode = :tail)
+            end
         end
     end
 
@@ -825,6 +886,7 @@ function run_paper_analysis(
     orbit20_acc = worker_orbit20[1]
     tail20_acc = worker_tail20[1]
     tail175_acc = worker_tail175[1]
+    tail20_zscan_accs = worker_tail20_zscan[1]
 
     for w in 2:n_workers
         merge_psd_acc!(fig3_acc, worker_fig3_fine[w])
@@ -834,6 +896,9 @@ function run_paper_analysis(
         merge_transect!(orbit20_acc, worker_orbit20[w])
         merge_transect!(tail20_acc, worker_tail20[w])
         merge_transect!(tail175_acc, worker_tail175[w])
+        for iz in eachindex(tail20_zscan_accs)
+            merge_transect!(tail20_zscan_accs[iz], worker_tail20_zscan[w][iz])
+        end
     end
 
     println("Finished parallel trajectory streaming in $(round(time() - t_start; digits = 1)) s")
@@ -852,6 +917,16 @@ function run_paper_analysis(
         bv = Vec3(b_itp(c)) * 1.0e9
         b_tail175_nT[1:3, i] .= bv
         b_tail175_nT[4, i] = norm(bv)
+    end
+    b_tail20_zscan_nT = Matrix{Float64}[]
+    for c_vec in tail20_zscan_centers
+        bmat = zeros(Float64, 4, length(c_vec))
+        for (i, c) in enumerate(c_vec)
+            bv = Vec3(b_itp(c)) * 1.0e9
+            bmat[1:3, i] .= bv
+            bmat[4, i] = norm(bv)
+        end
+        push!(b_tail20_zscan_nT, bmat)
     end
 
     # Reservoir-sample 20,000 trajectories and save compactly for local plotting
@@ -894,6 +969,9 @@ function run_paper_analysis(
         orbit20_acc,
         tail20_acc,
         tail175_acc,
+        tail_z_scan_Rm = copy(TAIL_Z_SCAN_RM),
+        tail20_zscan_accs,
+        b_tail20_zscan_nT,
         render_plots,
     )
 
@@ -922,7 +1000,9 @@ function merge_paper_analyses(
         b_fig3_nT, b_tail20_nT, b_tail175_nT,
         fig3_vx_centers_ms, fig3_vz_centers_ms, fig3_vx_edges_ms, fig3_vz_edges_ms,
         total_chunks, raw_fxz, raw_omni, raw_epa_wt, fig3_mom_acc,
-        orbit25_acc, orbit20_acc, tail20_acc, tail175_acc = jldopen(first_jld, "r") do f
+        orbit25_acc, orbit20_acc, tail20_acc, tail175_acc,
+        tail_z_scan_Rm, tail20_zscan_accs, b_tail20_zscan_nT = jldopen(first_jld, "r") do f
+        has_zscan = haskey(f, "tail_z_scan_Rm") && haskey(f, "raw_tail20_zscan")
         (
             Float64(f["rm_m"]),
             String(f["fields_file"]),
@@ -946,6 +1026,9 @@ function merge_paper_analyses(
             _unpack_transect_raw(f["raw_orbit20"]),
             _unpack_transect_raw(f["raw_tail20"]),
             _unpack_transect_raw(f["raw_tail175"]),
+            has_zscan ? collect(Float64, f["tail_z_scan_Rm"]) : Float64[],
+            has_zscan ? [_unpack_transect_raw(d) for d in f["raw_tail20_zscan"]] : TransectAccumulators[],
+            has_zscan ? [copy(m) for m in f["tail_z_scan_b_nT"]] : Matrix{Float64}[],
         )
     end
 
@@ -964,6 +1047,12 @@ function merge_paper_analyses(
             merge_transect!(orbit20_acc, _unpack_transect_raw(f["raw_orbit20"]))
             merge_transect!(tail20_acc, _unpack_transect_raw(f["raw_tail20"]))
             merge_transect!(tail175_acc, _unpack_transect_raw(f["raw_tail175"]))
+            if !isempty(tail20_zscan_accs) && haskey(f, "raw_tail20_zscan")
+                raw_zs = f["raw_tail20_zscan"]
+                for iz in eachindex(tail20_zscan_accs)
+                    merge_transect!(tail20_zscan_accs[iz], _unpack_transect_raw(raw_zs[iz]))
+                end
+            end
         end
     end
 
@@ -1035,6 +1124,9 @@ function merge_paper_analyses(
         orbit20_acc,
         tail20_acc,
         tail175_acc,
+        tail_z_scan_Rm,
+        tail20_zscan_accs,
+        b_tail20_zscan_nT,
         render_plots,
     )
 

@@ -224,7 +224,10 @@ function plot_fig3(
     fxz_plot = replace(permutedims(d.fxz), 0.0 => NaN)
     vx_km = d.vx_edges !== nothing ? d.vx_edges ./ 1.0e3 : d.vx_c ./ 1.0e3
     vz_km = d.vz_edges !== nothing ? d.vz_edges ./ 1.0e3 : d.vz_c ./ 1.0e3
-    norm_d = matplotlib.colors.LogNorm(vmin = 1.0e-3, vmax = 1.0e0)
+    fxz_max = maximum(d.fxz)
+    vdf_vmax = fxz_max < 0.05 ? 1.0e-2 : 1.0e0
+    vdf_vmin = vdf_vmax * 1.0e-3
+    norm_d = matplotlib.colors.LogNorm(vmin = vdf_vmin, vmax = vdf_vmax)
     im_d = ax_d.pcolormesh(vx_km, vz_km, fxz_plot; cmap = "turbo", norm = norm_d, shading = "auto", rasterized = true)
     ax_d.axhline(0.0; color = "white", ls = "--", lw = 1.0, alpha = 0.85)
     ax_d.axvline(0.0; color = "white", ls = "--", lw = 1.0, alpha = 0.85)
@@ -268,7 +271,10 @@ function plot_fig3(
     ax_f.set_facecolor("black")
     epa_plot = copy(d.epa_psd) # (n_E, n_PA) -> y is Energy, x is Pitch angle
     epa_plot[epa_plot .<= 0.0] .= NaN
-    norm_f = matplotlib.colors.LogNorm(vmin = 5.0e-9, vmax = 3.0e-6)
+    epa_max = maximum(d.epa_psd)
+    epa_vmax = epa_max < 1.0e-6 ? 5.0e-7 : 3.0e-6
+    epa_vmin = epa_max < 1.0e-6 ? 1.0e-9 : 5.0e-9
+    norm_f = matplotlib.colors.LogNorm(vmin = epa_vmin, vmax = epa_vmax)
     im_f = ax_f.pcolormesh(d.pa_edges, d.edges, epa_plot; cmap = "turbo", norm = norm_f, shading = "auto", rasterized = true)
     ax_f.set_yscale("log")
     ax_f.set_xlim(0.0, 180.0)
@@ -278,7 +284,7 @@ function plot_fig3(
     ax_f.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
     ax_f.set_xlabel("Pitch angle (deg)"; fontsize = 19.5)
     ax_f.set_ylabel("Energy (eV)"; fontsize = 19.5)
-    ax_f.text(0.96, 0.04, "(f)"; transform = ax_f.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
+    ax_f.text(0.04, 0.04, "(f)"; transform = ax_f.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "bottom", ha = "left", zorder = 10)
 
     b_str = @sprintf("\$B = (%.2f, %.2f, %.2f)\$ nT", d.b_nT[1], d.b_nT[2], d.b_nT[3])
     ax_f.text(0.04, 0.92, b_str; transform = ax_f.transAxes, color = "white", fontsize = 15.5, va = "top", ha = "left")
