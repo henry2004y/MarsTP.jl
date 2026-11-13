@@ -1,11 +1,17 @@
 # Publication-quality script for Figure 5 of the Mars O2+ test-particle manuscript:
-#   3 rows (for orbit angles 90°, 120°, 150°) x 3 columns:
-#     (a, b, c) XZ trajectory projection with Mars disk, numbered markers, and E_C, E_H, E_A field vectors
-#     (d, e, f) Instantaneous power qE·v (W) vs time since release (s) on symlog scale
-#     (g, h, i) Cumulative work ε (eV) vs time since release (s) on symlog scale with right-side summary
+#   Reorganized 2 rows x 3 columns along circular virtual spacecraft orbit at r = 2.5 Rm (0° to 240° in XZ plane):
+#     (a) XZ projection of 20,000 O2+ trajectories (blue-ish colormap), BS (dashed), MPB (solid),
+#         Mars disk, and circular virtual spacecraft trajectory at r = 2.5 Rm
+#     (b) O2+ PSD (s^3 m^-6) vs Orbit Angle (0°..240°) and Energy (10^0..10^5 eV) on black background
+#         with +E / -E hemisphere header bar
+#     (c) 1D energy-integrated mean cumulative electric-field work (<ε_T>, <ε_C>, <ε_H>, <ε_A>) vs Orbit Angle
+#     (d) 2D Mean Convective Work <ε_C> (eV) vs Orbit Angle and Energy
+#     (e) 2D Mean Hall Work <ε_H> (eV) vs Orbit Angle and Energy
+#     (f) 2D Mean Ambipolar Work <ε_A> (eV) vs Orbit Angle and Energy
+#     (d)-(f) use black background for unoccupied bins and RdBu_r SymLogNorm(linthresh = 10.0 eV)
 #
 # Usage:
-#   julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig5.jl [PAPER_DIR] [OUTPUT_PNG] [VTS_PATH]
+#   julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig5.jl [PAPER_DIR] [OUTPUT_PNG] [RAW_RUN_DIR]
 
 using MarsTP
 using JLD2
@@ -14,200 +20,228 @@ using LinearAlgebra
 using Printf
 using PyPlot
 
-const _COL_EC = "#0072B2"
-const _COL_EH = "#D55E00"
-const _COL_EA = "#009E73"
-
-function _draw_field_vectors!(ax, pos_m::SVector{3, Float64}, work_itp, rm_m::Float64; arrow_len::Float64 = 0.36)
-    x_Rm = pos_m[1] / rm_m
-    z_Rm = pos_m[3] / rm_m
-    for (itp_fn, col) in ((work_itp.conv, _COL_EC), (work_itp.hall, _COL_EH), (work_itp.gradpe, _COL_EA))
-        ev = SVector{3, Float64}(itp_fn(pos_m))
-        mag_xz = hypot(ev[1], ev[3])
-        if mag_xz > 0
-            dx = arrow_len * (ev[1] / mag_xz)
-            dz = arrow_len * (ev[3] / mag_xz)
-            ax.annotate(
-                "", xy = (x_Rm + dx, z_Rm + dz), xytext = (x_Rm, z_Rm),
-                arrowprops = Dict("arrowstyle" => "-|>", "color" => col, "lw" => 1.5, "mutation_scale" => 11),
-                zorder = 8,
-            )
-        end
-    end
-    return nothing
-end
-
-function _draw_circled_number!(ax, x::Real, y::Real, num::Int; transform = nothing, zorder::Int = 10)
-    kw = Dict{Symbol, Any}(
-        :fontsize => 15.5,
-        :fontweight => "bold",
-        :ha => "center",
-        :va => "center",
-        :bbox => Dict("boxstyle" => "circle,pad=0.18", "facecolor" => "white", "edgecolor" => "0.40", "lw" => 0.95),
-        :zorder => zorder,
-    )
-    transform !== nothing && (kw[:transform] = transform)
-    return ax.text(x, y, string(num); kw...)
-end
-
-function _default_paper_dir()
-    p1 = joinpath(pwd(), "outputs", "paper_figures_with_crustal")
-    isfile(joinpath(p1, "paper_analysis.jld2")) && return p1
-    return joinpath(pwd(), "outputs", "paper_figures_without_crustal")
+if !isdefined(@__MODULE__, :_load_sampled_trajectories)
+    include(joinpath(@__DIR__, "plot_fig3.jl"))
 end
 
 function plot_fig5(
         paper_dir::AbstractString = _default_paper_dir(),
         out_png::AbstractString = joinpath(paper_dir, "fig5.png");
-        vts_path::Union{Nothing, AbstractString} = nothing,
-        use_r20::Bool = false,
+        raw_run_dir = nothing,
     )
     jld_path = joinpath(paper_dir, "paper_analysis.jld2")
     isfile(jld_path) || error("paper_analysis.jld2 not found in $paper_dir")
 
-    rep, rm_m, fields_file = jldopen(jld_path, "r") do f
-        key = (!use_r20 && haskey(f, "fig5_rep_25")) ? "fig5_rep_25" : (haskey(f, "fig5_rep_20") ? "fig5_rep_20" : nothing)
-        key === nothing && error("Representative trajectories `fig5_rep_25` not found in $jld_path; re-run analyze_paper_results.jl")
-        r_m = haskey(f, "rm_m") ? Float64(f["rm_m"]) : Rm
-        ff = haskey(f, "fields_file") ? String(f["fields_file"]) : "mars_fields_without_crustal.vts"
-        (f[key], r_m, ff)
+    d = jldopen(jld_path, "r") do f
+        angles = Vector{Float64}(f["orbit_angles_deg"])
+        ec = Vector{Float64}(f["energy_centers_eV"])
+        edges = Vector{Float64}(f["energy_edges_eV"])
+        def = Matrix{Float64}(f["orbit_def"])
+        r_orbit = haskey(f, "orbit_radius_Rm") ? Float64(f["orbit_radius_Rm"]) : 2.5
+
+        mass = MarsTP.TP.SpeciesDict["O2+"].m
+        qe = MarsTP.TP.qᵢ
+        psd = if haskey(f, "orbit_psd_s3_m6")
+            Matrix{Float64}(f["orbit_psd_s3_m6"])
+        else
+            factor = (mass / qe)^2 ./ (2.0 .* (ec') .^ 2)
+            def .* factor
+        end
+
+        w_conv = Matrix{Float64}(f["orbit_w_conv_eV"])
+        w_hall = Matrix{Float64}(f["orbit_w_hall_eV"])
+        w_grad = Matrix{Float64}(f["orbit_w_gradpe_eV"])
+
+        ro = f["raw_orbit25"]
+        w_tau = Matrix{Float64}(ro["weight_tau"])
+        wc_num = Matrix{Float64}(ro["work_conv_num"])
+        wh_num = Matrix{Float64}(ro["work_hall_num"])
+        wa_num = Matrix{Float64}(ro["work_gradpe_num"])
+        wt_num = Matrix{Float64}(ro["work_total_num"])
+
+        n_ang = length(angles)
+        wc_1d = fill(NaN, n_ang)
+        wh_1d = fill(NaN, n_ang)
+        wa_1d = fill(NaN, n_ang)
+        wt_1d = fill(NaN, n_ang)
+        for j in 1:n_ang
+            wt_j = sum(@view w_tau[j, :])
+            if wt_j > 0.0
+                wc_1d[j] = sum(@view wc_num[j, :]) / wt_j
+                wh_1d[j] = sum(@view wh_num[j, :]) / wt_j
+                wa_1d[j] = sum(@view wa_num[j, :]) / wt_j
+                wt_1d[j] = sum(@view wt_num[j, :]) / wt_j
+            end
+        end
+
+        (; angles, ec, edges, psd, w_conv, w_hall, w_grad, w_tau, wc_1d, wh_1d, wa_1d, wt_1d, r_orbit)
     end
 
-    resolved_vts = if vts_path !== nothing && isfile(vts_path)
-        String(vts_path)
-    elseif isfile(MarsTP.data_path(fields_file))
-        MarsTP.data_path(fields_file)
-    else
-        MarsTP.data_path("mars_fields_without_crustal.vts")
-    end
-    work_itp = build_field_work_interpolators(resolved_vts; include_extended = true)
-    qe = MarsTP.TP.qᵢ
+    paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
     PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 18.5
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
+    PyPlot.matplotlib.rcParams["font.size"] = 17.5
+    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 17.5
+    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 17.5
+    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.0
+    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.0
     PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
     PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
+    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.2
+    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.2
     PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
     PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
 
-    fig, axes = plt.subplots(3, 3; figsize = (15.8, 12.0), layout = "constrained")
-    fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.03, wspace = 0.03, hspace = 0.03)
+    fig = plt.figure(figsize = (18.4, 10.6), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.05, hspace = 0.06)
+    sfigs = fig.subfigures(2, 1; height_ratios = [1.05, 1.0])
+    sfig_top = sfigs[1]
+    sfig_bot = sfigs[2]
 
-    row_configs = (
-        (1, 90, ("a", "d", "g"), (-1.1, 1.7), (0.35, 0.82, 0.93)),
-        (2, 120, ("b", "e", "h"), (-1.9, 1.05), (0.16, 0.92)),
-        (3, 150, ("c", "f", "i"), (-2.4, 0.55), (0.2, 0.78)),
+    axes_top = sfig_top.subplots(1, 3)
+    ax_a = axes_top[1]
+    ax_b = axes_top[2]
+    ax_c = axes_top[3]
+
+    axes_bot = sfig_bot.subplots(1, 3; sharex = true, sharey = true)
+    ax_d = axes_bot[1]
+    ax_e = axes_bot[2]
+    ax_f = axes_bot[3]
+
+    # (a) XZ trajectories + red virtual orbit arc (2.5 Rm)
+    _draw_blue_trajectories!(ax_a, paths, "XZ")
+    bs_mpb(ax_a, "XZ"; draw_bs = true, draw_mpb = false, xmin = -4.0, boundary_color = "black", boundary_ls = "--", boundary_lw = 1.1)
+    bs_mpb(ax_a, "XZ"; draw_bs = false, draw_mpb = true, xmin = -4.0, boundary_color = "black", boundary_ls = "-", boundary_lw = 1.1)
+    plot_mars(ax_a; radius = 1.0, zorder = 5)
+
+    ang_arc = range(0.0, 240.0; length = 241)
+    r_orb = d.r_orbit
+    ax_a.plot(r_orb .* cosd.(ang_arc), r_orb .* sind.(ang_arc); color = "#d6192b", lw = 2.2, zorder = 7)
+    mark_angles = (0, 60, 120, 180, 240)
+    for ang in mark_angles
+        xm = r_orb * cosd(ang)
+        zm = r_orb * sind(ang)
+        ax_a.scatter([xm], [zm]; s = 26, color = "#d6192b", zorder = 8)
+        dx, dz, ha_str, va_str = if ang == 0
+            (0.10, 0.0, "left", "center")
+        elseif ang == 60
+            (0.08, 0.14, "left", "bottom")
+        elseif ang == 120
+            (-0.08, 0.14, "right", "bottom")
+        elseif ang == 180
+            (-0.12, 0.0, "right", "center")
+        else
+            (-0.08, -0.16, "center", "top")
+        end
+        ax_a.text(xm + dx, zm + dz, "$(ang)°"; fontsize = 16.5, color = "black", ha = ha_str, va = va_str, zorder = 9)
+    end
+    ax_a.text(2.8, -1.0, "Virtual\ntrajectory"; color = "#d6192b", fontsize = 16.0, ha = "center", va = "center")
+    ax_a.set_xlim(-4.0, 4.0)
+    ax_a.set_ylim(-3.0, 4.0)
+    ax_a.set_aspect("equal")
+    ax_a.set_xticks(-4:2:4)
+    ax_a.set_yticks(-3:1:4)
+    ax_a.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 19)
+    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 19)
+    ax_a.text(0.03, 0.95, "(a)"; transform = ax_a.transAxes, fontsize = 20.5, fontweight = "bold", va = "top", ha = "left")
+
+    # (b) PSD vs Orbit Angle and Energy
+    ax_b.set_facecolor("black")
+    cmap_b = matplotlib.cm.get_cmap("turbo").copy()
+    cmap_b.set_bad(color = "black")
+    psd_plot = copy(permutedims(d.psd))
+    psd_plot[psd_plot .<= 0.0] .= NaN
+    norm_b = matplotlib.colors.LogNorm(vmin = 1.0e-20, vmax = 1.0e-4)
+    im_b = ax_b.pcolormesh(d.angles, d.ec, psd_plot; cmap = cmap_b, norm = norm_b, shading = "auto", rasterized = true)
+    ax_b.set_yscale("log")
+    ax_b.set_xlim(0.0, 240.0)
+    ax_b.set_ylim(1.0e0, 1.0e5)
+    ax_b.set_xticks(0:60:240)
+    ax_b.set_xlabel("Orbit Angle (deg)"; fontsize = 19)
+    ax_b.set_ylabel("Energy (eV)"; fontsize = 19)
+    ax_b.text(0.03, 0.95, "(b)"; transform = ax_b.transAxes, color = "white", fontsize = 20.5, fontweight = "bold", va = "top", ha = "left")
+
+    ax_b.annotate(
+        "Beam", xy = (96.0, 1.4e4), xytext = (122.0, 3.6e4),
+        color = "white", fontsize = 16.5, ha = "left", va = "center",
+        arrowprops = Dict("arrowstyle" => "->", "color" => "white", "lw" => 1.6),
+    )
+    ax_b.annotate(
+        "Low-energy\nions", xy = (182.0, 1.0e1), xytext = (152.0, 1.2e1),
+        color = "white", fontsize = 15.5, ha = "right", va = "center",
+        arrowprops = Dict("arrowstyle" => "->", "color" => "white", "lw" => 1.6),
     )
 
-    for (row, ang_deg, (tag_tr, tag_p, tag_w), xlim_tr, frac_markers) in row_configs
-        t_vec = rep.t[row]
-        u_mat = rep.u[row]
-        isempty(t_vec) && continue
-        u_sv = [SVector{6, Float64}(u_mat[:, k]) for k in 1:size(u_mat, 2)]
-        tr = (; t = t_vec, u = u_sv)
-        prof = Electric_field_work_profile(tr, work_itp; species = "O2+")
-
-        xs = [u[1] / rm_m for u in u_sv]
-        zs = [u[3] / rm_m for u in u_sv]
-        t_rel = prof.t .- prof.t[1]
-        t_end = t_rel[end]
-
-        # Marker indices along time (clamped to points inside the visible XZ plot box)
-        vis_idxs = findall(i -> (xlim_tr[1] + 0.12 <= xs[i] <= xlim_tr[2] - 0.12) && (0.62 <= zs[i] <= 2.85), eachindex(t_rel))
-        m_idxs = map(frac_markers) do f
-            idx0 = clamp(searchsortedlast(t_rel, f * t_end), 2, length(t_rel) - 1)
-            if isempty(vis_idxs) || (idx0 in vis_idxs)
-                return idx0
-            end
-            _, best_pos = findmin(i -> abs(t_rel[i] - f * t_end), vis_idxs)
-            return vis_idxs[best_pos]
-        end
-
-        # Column 1: XZ trajectory + Mars disk + E vectors
-        ax_tr = axes[row, 1]
-        plot_mars(ax_tr; radius = 1.0, zorder = 2)
-        ax_tr.plot(xs, zs; color = "black", ls = "--", lw = 1.8, zorder = 5)
-        if length(xs) >= 3
-            ax_tr.annotate(
-                "", xy = (xs[end], zs[end]), xytext = (xs[end - 2], zs[end - 2]),
-                arrowprops = Dict("arrowstyle" => "->", "color" => "black", "lw" => 1.8, "mutation_scale" => 15),
-                zorder = 6,
-            )
-        end
-        for (m_num, idx) in enumerate(m_idxs)
-            pos_m = SVector{3, Float64}(u_sv[idx][1], u_sv[idx][2], u_sv[idx][3])
-            _draw_field_vectors!(ax_tr, pos_m, work_itp, rm_m; arrow_len = 0.36)
-            _draw_circled_number!(ax_tr, xs[idx], zs[idx], m_num; zorder = 10)
-        end
-        if row == 1
-            for (lbl, col) in (("\$E_C\$", _COL_EC), ("\$E_H\$", _COL_EH), ("\$E_A\$", _COL_EA))
-                ax_tr.plot(Float64[], Float64[]; color = col, lw = 2.4, label = lbl)
-            end
-            ax_tr.legend(loc = "center left", bbox_to_anchor = (0.02, 0.56), frameon = false, fontsize = 17.5)
-        end
-        ax_tr.set_xlim(xlim_tr)
-        ax_tr.set_ylim(0.5, 3.0)
-        ax_tr.set_aspect("equal")
-        ax_tr.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-        ax_tr.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 20)
-        row == 3 && ax_tr.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 20)
-        ax_tr.text(0.03, 0.94, tag_tr; transform = ax_tr.transAxes, fontsize = 22.5, fontweight = "bold", va = "top", ha = "left")
-        ax_tr.text(0.96, 0.94, "$(ang_deg)°"; transform = ax_tr.transAxes, fontsize = 20, fontweight = "bold", va = "top", ha = "right")
-
-        # Column 2: Instantaneous power qE·v (W) on symlog scale
-        ax_p = axes[row, 2]
-        ax_p.axhline(0.0; color = "0.75", lw = 0.8)
-        ax_p.plot(t_rel, prof.power_conv_eV_s .* qe; color = _COL_EC, lw = 1.9, label = "\$P_C\$")
-        ax_p.plot(t_rel, prof.power_hall_eV_s .* qe; color = _COL_EH, lw = 1.9, label = "\$P_H\$")
-        ax_p.plot(t_rel, prof.power_gradpe_eV_s .* qe; color = _COL_EA, lw = 1.9, label = "\$P_A\$")
-        ax_p.plot(t_rel, prof.power_total_eV_s .* qe; color = "black", ls = "--", lw = 1.9, label = "\$P_T\$")
-        ax_p.set_yscale("symlog"; linthresh = 1.0e-19, linscale = 0.6)
-        ax_p.set_xlim(0.0, t_end * 1.04)
-        for (m_num, idx) in enumerate(m_idxs)
-            tm = t_rel[idx]
-            ax_p.axvline(tm; color = "0.65", ls = ":", lw = 1.1, zorder = 1)
-            _draw_circled_number!(ax_p, tm, 0.12, m_num; transform = ax_p.get_xaxis_transform(), zorder = 8)
-        end
-        if row == 1
-            ax_p.legend(loc = "upper center", ncol = 2, frameon = false, fontsize = 17, columnspacing = 0.9, handletextpad = 0.4)
-        end
-        ax_p.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-        ax_p.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
-        ax_p.set_ylabel("\$q\\mathbf{E} \\cdot \\mathbf{v}\$ (W)"; fontsize = 20)
-        row == 3 && ax_p.set_xlabel("Time since release (s)"; fontsize = 20)
-        ax_p.text(0.03, 0.94, tag_p; transform = ax_p.transAxes, fontsize = 22.5, fontweight = "bold", va = "top", ha = "left")
-
-        # Column 3: Cumulative work ε (eV) on symlog scale + right-side text summary
-        ax_w = axes[row, 3]
-        ax_w.axhline(0.0; color = "0.75", lw = 0.8)
-        ax_w.plot(t_rel, prof.conv_eV; color = _COL_EC, lw = 1.9)
-        ax_w.plot(t_rel, prof.hall_eV; color = _COL_EH, lw = 1.9)
-        ax_w.plot(t_rel, prof.gradpe_eV; color = _COL_EA, lw = 1.9)
-        ax_w.plot(t_rel, prof.total_eV; color = "black", ls = "--", lw = 1.9)
-        ax_w.set_yscale("symlog"; linthresh = 1.0, linscale = 0.6)
-        ax_w.set_xlim(0.0, t_end * 1.04)
-        ax_w.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-        ax_w.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
-        ax_w.set_ylabel("\$\\varepsilon\$ (eV)"; fontsize = 20)
-        row == 3 && ax_w.set_xlabel("Time since release (s)"; fontsize = 20)
-        ax_w.text(0.03, 0.94, tag_w; transform = ax_w.transAxes, fontsize = 22.5, fontweight = "bold", va = "top", ha = "left")
-
-        wc_f = prof.conv_eV[end]
-        wh_f = prof.hall_eV[end]
-        wa_f = prof.gradpe_eV[end]
-        wt_f = prof.total_eV[end]
-        denom = abs(wt_f) > 1.0e-9 ? wt_f : 1.0
-        ax_w.text(1.04, 0.84, @sprintf("\$\\varepsilon_C = %.0f\$ eV\n(%.1f%%)", wc_f, 100.0 * wc_f / denom); transform = ax_w.transAxes, color = _COL_EC, fontsize = 17.5, va = "center", ha = "left", linespacing = 1.15)
-        ax_w.text(1.04, 0.57, @sprintf("\$\\varepsilon_H = %.0f\$ eV\n(%.1f%%)", wh_f, 100.0 * wh_f / denom); transform = ax_w.transAxes, color = _COL_EH, fontsize = 17.5, va = "center", ha = "left", linespacing = 1.15)
-        ax_w.text(1.04, 0.3, @sprintf("\$\\varepsilon_A = %.0f\$ eV\n(%.1f%%)", wa_f, 100.0 * wa_f / denom); transform = ax_w.transAxes, color = _COL_EA, fontsize = 17.5, va = "center", ha = "left", linespacing = 1.15)
-        ax_w.text(1.04, 0.07, @sprintf("\$\\varepsilon_T = %.0f\$ eV", wt_f); transform = ax_w.transAxes, color = "black", fontsize = 17.5, va = "center", ha = "left")
+    # Top +E / -E hemisphere bar above panel b
+    ax_b.plot([0.0, 240.0], [1.04, 1.04]; color = "black", lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
+    for xv in (0.0, 180.0, 240.0)
+        ax_b.plot([xv, xv], [1.01, 1.07]; color = "black", lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
     end
+    ax_b.text(90.0, 1.08, "+E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 16.5, ha = "center", va = "bottom", clip_on = false)
+    ax_b.text(210.0, 1.08, "−E"; transform = ax_b.get_xaxis_transform(), fontsize = 16.5, ha = "center", va = "bottom", clip_on = false)
+
+    cb_b = sfig_top.colorbar(im_b; ax = ax_b, location = "right", fraction = 0.048, pad = 0.03)
+    cb_b.ax.tick_params(which = "major", labelsize = 16, length = 5.5, width = 1.3)
+    cb_b.ax.tick_params(which = "minor", length = 3.2, width = 1.0)
+    cb_b.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 18)
+
+    # (c) 1D Energy-integrated mean cumulative work vs Orbit Angle
+    ax_c.axhline(0.0; color = "0.50", ls = ":", lw = 1.2)
+    ax_c.axvline(180.0; color = "0.45", ls = "--", lw = 1.2)
+    ax_c.plot(d.angles, d.wt_1d; color = "black", ls = "--", lw = 2.5, label = "\$\\langle\\varepsilon_T\\rangle\$ (Total)", zorder = 5)
+    ax_c.plot(d.angles, d.wc_1d; color = "#0072B2", lw = 2.2, label = "\$\\langle\\varepsilon_C\\rangle\$ (Conv)", zorder = 4)
+    ax_c.plot(d.angles, d.wh_1d; color = "#D55E00", lw = 2.2, label = "\$\\langle\\varepsilon_H\\rangle\$ (Hall)", zorder = 4)
+    ax_c.plot(d.angles, d.wa_1d; color = "#009E73", lw = 2.2, label = "\$\\langle\\varepsilon_A\\rangle\$ (Amb)", zorder = 4)
+    ax_c.set_yscale("symlog"; linthresh = 10.0, linscale = 0.8)
+    ax_c.set_xlim(0.0, 240.0)
+    ax_c.set_ylim(-1.0e3, 2.5e4)
+    ax_c.set_xticks(0:60:240)
+    ax_c.set_yticks([-1.0e3, -1.0e2, -1.0e1, 0.0, 1.0e1, 1.0e2, 1.0e3, 1.0e4])
+    ax_c.set_xlabel("Orbit Angle (deg)"; fontsize = 19)
+    ax_c.set_ylabel("Mean cumulative work (eV)"; fontsize = 19)
+    ax_c.grid(true; which = "major", alpha = 0.25)
+    ax_c.legend(loc = "lower left", fontsize = 14.5, frameon = true, facecolor = "white", edgecolor = "0.78", framealpha = 0.92)
+    ax_c.text(0.03, 0.95, "(c)"; transform = ax_c.transAxes, fontsize = 20.5, fontweight = "bold", va = "top", ha = "left")
+    ax_c.text(176.0, 1.7e4, "+E"; fontsize = 15.5, color = "0.35", ha = "right", va = "center")
+    ax_c.text(184.0, 1.7e4, "−E"; fontsize = 15.5, color = "0.35", ha = "left", va = "center")
+
+    # (d)-(f) 2D Mean cumulative work spectrograms (RdBu_r, SymLogNorm linthresh = 10.0, black unoccupied bins)
+    cmap_w = matplotlib.cm.get_cmap("RdBu_r").copy()
+    cmap_w.set_bad(color = "black")
+    norm_w = matplotlib.colors.SymLogNorm(linthresh = 10.0, linscale = 0.8, vmin = -1.0e4, vmax = 1.0e4, base = 10)
+    occ_perm = permutedims(d.w_tau .> 0.0)
+
+    work_panels = (
+        (ax_d, d.w_conv, "(d)", "\$\\langle\\varepsilon_C\\rangle\$ (Convective)", true),
+        (ax_e, d.w_hall, "(e)", "\$\\langle\\varepsilon_H\\rangle\$ (Hall)", false),
+        (ax_f, d.w_grad, "(f)", "\$\\langle\\varepsilon_A\\rangle\$ (Ambipolar)", false),
+    )
+    im_w = nothing
+    for (ax, mat, tag, sym_lbl, show_y) in work_panels
+        ax.set_facecolor("black")
+        mat_plot = copy(permutedims(mat))
+        mat_plot[.!occ_perm .| .!isfinite.(mat_plot)] .= NaN
+        im_w = ax.pcolormesh(d.angles, d.ec, mat_plot; cmap = cmap_w, norm = norm_w, shading = "auto", rasterized = true)
+        ax.set_yscale("log")
+        ax.set_xlim(0.0, 240.0)
+        ax.set_ylim(1.0e0, 1.0e5)
+        ax.set_xticks(0:60:240)
+        ax.set_yticks([1.0e0, 1.0e1, 1.0e2, 1.0e3, 1.0e4, 1.0e5])
+        ax.set_xlabel("Orbit Angle (deg)"; fontsize = 19)
+        if show_y
+            ax.set_ylabel("Energy (eV)"; fontsize = 19)
+        else
+            ax.tick_params(labelleft = false)
+        end
+        ax.text(0.03, 0.94, tag; transform = ax.transAxes, color = "white", fontsize = 20.5, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+        ax.text(0.96, 0.93, sym_lbl; transform = ax.transAxes, color = "white", fontsize = 18.0, va = "top", ha = "right", zorder = 10)
+    end
+
+    cb_w = sfig_bot.colorbar(im_w; ax = collect(axes_bot), location = "right", fraction = 0.022, pad = 0.02)
+    cb_w.set_ticks([-1.0e4, -1.0e3, -1.0e2, -1.0e1, 0.0, 1.0e1, 1.0e2, 1.0e3, 1.0e4])
+    cb_w.ax.tick_params(which = "major", labelsize = 16.5, length = 6.0, width = 1.3)
+    cb_w.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
+    cb_w.set_label("Mean cumulative work \$\\langle\\varepsilon_\\ell\\rangle\$ (eV)"; fontsize = 18.5)
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
@@ -219,6 +253,6 @@ end
 if abspath(PROGRAM_FILE) == @__FILE__
     pdir = length(ARGS) >= 1 ? ARGS[1] : _default_paper_dir()
     out = length(ARGS) >= 2 ? ARGS[2] : joinpath(pdir, "fig5.png")
-    vts = length(ARGS) >= 3 ? ARGS[3] : nothing
-    plot_fig5(pdir, out; vts_path = vts)
+    rdir = length(ARGS) >= 3 ? ARGS[3] : nothing
+    plot_fig5(pdir, out; raw_run_dir = rdir)
 end

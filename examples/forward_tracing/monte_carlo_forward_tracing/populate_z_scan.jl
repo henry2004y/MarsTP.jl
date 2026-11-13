@@ -13,7 +13,7 @@
 
 include("monte_carlo_shell.jl")
 include("analyze_paper_results.jl")
-include("plot_fig6.jl")
+include("plot_fig7.jl")
 
 using .ShellMonteCarlo
 using MarsTP, StaticArrays, LinearAlgebra, JLD2, Printf
@@ -75,7 +75,7 @@ function populate_z_scan_in_memory!(
     tail_side = 0.2 * rm_m
     tail20_zscan_centers = [
         let y_cs = _find_current_sheet_y_Rm(b_itp, -2.0, z0, rm_m)
-            [Vec3(-2.0 * rm_m, (y_cs + dy) * rm_m, z0 * rm_m) for dy in tail_y_Rm]
+                [Vec3(-2.0 * rm_m, (y_cs + dy) * rm_m, z0 * rm_m) for dy in tail_y_Rm]
         end for z0 in TAIL_Z_SCAN_RM
     ]
     nt = Threads.nthreads()
@@ -84,7 +84,7 @@ function populate_z_scan_in_memory!(
     x_lo = -2.105 * rm_m
     x_hi = -1.895 * rm_m
     y_lo = -1.555 * rm_m
-    y_hi =  1.555 * rm_m
+    y_hi = 1.555 * rm_m
     z_lo = (minimum(TAIL_Z_SCAN_RM) - 0.105) * rm_m
     z_hi = (maximum(TAIL_Z_SCAN_RM) + 0.105) * rm_m
 
@@ -112,8 +112,8 @@ function populate_z_scan_in_memory!(
                         a = hist[j - 1]
                         b = hist[j]
                         if min(a[2], b[2]) <= x_hi && max(a[2], b[2]) >= x_lo &&
-                           min(a[3], b[3]) <= y_hi && max(a[3], b[3]) >= y_lo &&
-                           min(a[4], b[4]) <= z_hi && max(a[4], b[4]) >= z_lo
+                                min(a[3], b[3]) <= y_hi && max(a[3], b[3]) >= y_lo &&
+                                min(a[4], b[4]) <= z_hi && max(a[4], b[4]) >= z_lo
                             hits_slab = true
                             last_slab_idx = j
                         end
@@ -139,8 +139,10 @@ function populate_z_scan_in_memory!(
             done_now = Threads.atomic_add!(n_done, 1) + 1
             if done_now % 100_000 == 0 || done_now == n_part
                 el = time() - t_trace
-                @printf("  Progress: %d / %d (%.1f%%) | tail-slab trajectories=%d | elapsed=%.1f s\n",
-                        done_now, n_part, 100.0 * done_now / n_part, n_tail_hits[], el)
+                @printf(
+                    "  Progress: %d / %d (%.1f%%) | tail-slab trajectories=%d | elapsed=%.1f s\n",
+                    done_now, n_part, 100.0 * done_now / n_part, n_tail_hits[], el
+                )
                 flush(stdout)
             end
         end
@@ -194,8 +196,8 @@ function populate_z_scan_in_memory!(
     mv(tmp_jld, jld_path; force = true)
     println("Updated $jld_path with 16-level production Z-scan.")
 
-    out_scan = joinpath(paper_dir, "fig6_z_scan.png")
-    plot_fig6_z_scan(paper_dir, out_scan)
+    out_scan = joinpath(paper_dir, "fig7_z_scan.png")
+    plot_fig7_z_scan(paper_dir, out_scan)
     return out_scan
 end
 
@@ -205,4 +207,3 @@ if abspath(PROGRAM_FILE) == @__FILE__
     cstride = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : 1
     populate_z_scan_in_memory!(pdir; per_cell = pcell, cell_stride = cstride)
 end
-

@@ -713,7 +713,7 @@ function _save_and_plot_paper_analysis(
     end
 
     if render_plots
-        for script_name in ("plot_fig3.jl", "plot_fig4.jl", "plot_fig5.jl", "plot_fig6.jl", "plot_fig7.jl")
+        for script_name in ("plot_fig3.jl", "plot_fig4.jl", "plot_fig5.jl", "plot_fig6.jl", "plot_fig7.jl", "plot_tail_rep_ions.jl")
             spath = joinpath(@__DIR__, script_name)
             if isfile(spath)
                 include(spath)
@@ -722,20 +722,24 @@ function _save_and_plot_paper_analysis(
         if isdefined(@__MODULE__, :plot_fig3)
             Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig3), out_dir, joinpath(out_dir, "fig3.png"))
         end
-        if isdefined(@__MODULE__, :plot_fig4)
-            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig4), out_dir, joinpath(out_dir, "fig4.png"))
+        alt_jld = joinpath(out_dir, "altitude_energy_maps_025_050_075_100Rm.jld2")
+        if isdefined(@__MODULE__, :plot_fig4) && isfile(alt_jld)
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig4), out_dir, joinpath(out_dir, "fig4.png"); vts_path = fields_path)
         end
         if isdefined(@__MODULE__, :plot_fig5)
-            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig5), out_dir, joinpath(out_dir, "fig5.png"); vts_path = fields_path)
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig5), out_dir, joinpath(out_dir, "fig5.png"))
         end
         if isdefined(@__MODULE__, :plot_fig6)
-            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig6), out_dir, joinpath(out_dir, "fig6.png"))
-        end
-        if !isempty(tail_z_scan_Rm) && isdefined(@__MODULE__, :plot_fig6_z_scan)
-            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig6_z_scan), out_dir, joinpath(out_dir, "fig6_z_scan.png"))
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig6), out_dir, joinpath(out_dir, "fig6.png"); vts_path = fields_path)
         end
         if isdefined(@__MODULE__, :plot_fig7)
-            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig7), out_dir, joinpath(out_dir, "fig7.png"); vts_path = fields_path)
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig7), out_dir, joinpath(out_dir, "fig7.png"))
+        end
+        if !isempty(tail_z_scan_Rm) && isdefined(@__MODULE__, :plot_fig7_z_scan)
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_fig7_z_scan), out_dir, joinpath(out_dir, "fig7_z_scan.png"))
+        end
+        if isdefined(@__MODULE__, :plot_tail_rep_ions)
+            Base.invokelatest(Base.invokelatest(getfield, @__MODULE__, :plot_tail_rep_ions), out_dir, joinpath(out_dir, "tail_rep_ions.png"); vts_path = fields_path)
         end
     end
     return out_dir

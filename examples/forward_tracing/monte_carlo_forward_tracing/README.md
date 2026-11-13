@@ -378,40 +378,44 @@ Plotting uses `PyPlot` (calling Matplotlib). Trajectory backgrounds use [src/vis
 | [plot_library_psd.jl](plot_library_psd.jl) | Integrated two-dimensional VDFs |
 | [plot_bulk_speed_flux_maps.jl](plot_bulk_speed_flux_maps.jl) | Multi-altitude O2+ and O+ bulk-speed flux maps |
 
-## 5. Reproducing Manuscript Figures (Figures 1–7 and Appendix A)
+## 5. Reproducing Manuscript Figures (Figures 1–8 and Appendix A)
 
-The production scripts below reproduce the tracing results and figures for the companion manuscript (`Testparticle_mars_paper.tex` in `MarsO2+`).
+The production scripts below reproduce the tracing results and figures for the companion manuscript (`Testparticle_mars_paper.tex` in `MarsO2+`). Sections 3–4 use the baseline `without_crustal` ensemble (`outputs/paper_figures_without_crustal`), and Section 5.1 adds the `with_crustal` sensitivity comparison (`outputs/paper_figures_with_crustal`).
 
 | Manuscript Figure | Script | Description |
 | --- | --- | --- |
-| **Fig. 1** | [`plot_fig1.jl`](plot_fig1.jl) | MHD $\mathbf{B}$ (XY) and $\mathbf{E}_C, \mathbf{E}_H, \mathbf{E}_A$ (XZ) |
-| **Fig. 2** | [`plot_fig2.jl`](plot_fig2.jl) | 400 km $\mathrm{O}_2^+$ density, speed, temperature, Maxwellian $f_{xz}$, and weights $w_i$ |
-| **Fig. 3** | [`plot_fig3.jl`](plot_fig3.jl) | 3D trajectories (XZ, XY, YZ) and virtual detector VDF/DEF/pitch-angle distribution at $(-2, 0, 0)\,R_M$ |
-| **Fig. 4** | [`plot_fig4.jl`](plot_fig4.jl) | Circular virtual orbit ($2.5\,R_M$, $0^\circ\text{–}240^\circ$) PSD and mean cumulative work channels |
-| **Fig. 5** | [`plot_fig5.jl`](plot_fig5.jl) | Representative ions at $90^\circ, 120^\circ, 150^\circ$ (trajectories, power, cumulative work) |
-| **Fig. 6** | [`plot_fig6.jl`](plot_fig6.jl) | Cross-tail transect along $Y \in [-1, 1]\,R_M$ at $X = -2\,R_M, Z = +0.75\,R_M$ (plus `plot_fig6_z_scan`) |
-| **Fig. 7** | [`plot_fig7.jl`](plot_fig7.jl) | Representative ions at the current sheet center $(-2, 0, +0.75)\,R_M$ and lobe $(-2, -0.5, +0.75)\,R_M$ |
+| **Fig. 1** | [`plot_fig1.jl`](plot_fig1.jl) | MHD $\mathbf{B}$ (XY) and $\mathbf{E}_C, \mathbf{E}_H, \mathbf{E}_A$ (XZ) without crustal fields |
+| **Fig. 2** | [`plot_fig2.jl`](plot_fig2.jl) | 400 km $\mathrm{O}_2^+$ density, bulk speed, temperature, Maxwellian $f_{xz}$, and weights $w_i$ (log scale in d–e) |
+| **Fig. 3** | [`plot_fig3.jl`](plot_fig3.jl) | 3D $\mathrm{O}_2^+$ trajectories (XZ, XY, YZ) and virtual detector VDF, DEF, and PSD at $(-2, 0, 0)\,R_M$ |
+| **Fig. 4** | [`plot_fig4.jl`](plot_fig4.jl) | Global altitude synthesis: $\langle E\rangle$ at $0.25\text{–}1.00\,R_M$ and $\langle\varepsilon_C\rangle, \langle\varepsilon_H\rangle, \langle\varepsilon_A\rangle$ at $0.75\,R_M$ |
+| **Fig. 5** | [`plot_fig5.jl`](plot_fig5.jl) | Circular virtual orbit ($2.5\,R_M$, $0^\circ\text{–}240^\circ$): XZ trajectories, PSD, 1D integrated work, and 2D $(E, \theta)$ work maps |
+| **Fig. 6** | [`plot_fig6.jl`](plot_fig6.jl) | Representative plume $\mathrm{O}_2^+$ ions at orbital angles $90^\circ, 120^\circ, 150^\circ$ (trajectories, power, cumulative work) |
+| **Fig. 7** | [`plot_fig7.jl`](plot_fig7.jl) | Cross-tail transect along $Y \in [-1, 1]\,R_M$ at $X = -2.0\,R_M, Z = +0.75\,R_M$ (plus `plot_fig7_z_scan`) |
+| **Fig. 8** | [`plot_fig8.jl`](plot_fig8.jl) | Crustal-field sensitivity comparison (`with_crustal` vs. `without_crustal`): $2.5\,R_M$ orbit PSD & work, $1.0\,R_M$ global share, warped tail CS, and asymmetric $\langle\varepsilon_H\rangle$ |
 | **Fig. A1** | [`../tp_mhd_discrepancy_benchmark.jl`](../tp_mhd_discrepancy_benchmark.jl) | Unified 6-panel 1D analytical benchmark for TP–MHD discrepancy and $z_0$ sensitivity |
 
 Supplementary diagnostics and analysis drivers in this folder:
-- [`run_incremental_chunks.jl`](run_incremental_chunks.jl) & [`analyze_paper_results.jl`](analyze_paper_results.jl): Run multi-chunk Monte Carlo ensembles and pool trajectories into `paper_analysis.jld2` and `trajectories_20000_sample.jld2` (and see [`../perlmutter/README.md`](../perlmutter/README.md) for Slurm production runs).
-- [`populate_z_scan.jl`](populate_z_scan.jl): Populate the 16-level cross-tail $Z$ scan (`tail_z_scan_*`) in an existing `paper_analysis.jld2`.
-- [`plot_altitude_energy_maps.jl`](plot_altitude_energy_maps.jl): Altitude shell energy maps ($0.25, 0.50, 0.75, 1.00\,R_M$) and electric-field work histograms.
+- [`run_incremental_chunks.jl`](run_incremental_chunks.jl) & [`analyze_paper_results.jl`](analyze_paper_results.jl): Run multi-chunk Monte Carlo ensembles (`40.6M` trajectories across `8` chunks per configuration) and pool trajectories into `paper_analysis.jld2` and `trajectories_20000_sample.jld2` (see [`../perlmutter/README.md`](../perlmutter/README.md) for Slurm production runs).
+- [`populate_z_scan.jl`](populate_z_scan.jl): Populate the 16-level cross-tail $Z$ scan (`tail_z_scan_*`) in an existing `paper_analysis.jld2` and render `fig7_z_scan.png`.
+- [`plot_altitude_energy_maps.jl`](plot_altitude_energy_maps.jl): Compute and cache `altitude_energy_maps_025_050_075_100Rm.jld2` across spherical shells ($0.25, 0.50, 0.75, 1.00\,R_M$) and electric-field work histograms.
+- [`plot_tail_rep_ions.jl`](plot_tail_rep_ions.jl): Supplementary single-particle diagnostic at the current sheet center $(-2, 0, +0.75)\,R_M$ and lobe $(-2, -0.5, +0.75)\,R_M$.
 - [`plot_trajectory_work_xz.jl`](plot_trajectory_work_xz.jl): Cumulative electric-field work along $\mathrm{O}_2^+$ trajectories in the XZ plane.
 
-Run from the `MarsTP.jl` repository root to regenerate the manuscript figures into `MarsO2+/figures/`:
+Run from the `MarsTP.jl` repository root to regenerate all 9 manuscript figures into `MarsO2+/figures/`:
 
 ```powershell
-$PAPER_DIR = "outputs/paper_figures_without_crustal"
-$FIG_DIR   = "C:/Users/henry/Documents/Research/MarsO2+/figures"
+$PDIR_NC = "outputs/paper_figures_without_crustal"
+$PDIR_WC = "outputs/paper_figures_with_crustal"
+$FIG_DIR = "C:/Users/henry/Documents/Research/MarsO2+/figures"
 
 julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig1.jl "$FIG_DIR/fig1.png" "data/mars_fields_without_crustal.vts"
 julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig2.jl "$FIG_DIR/fig2.png" "data/mars_fields_without_crustal.vts"
-julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig3.jl "$PAPER_DIR" "$FIG_DIR/fig3.png"
-julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig4.jl "$PAPER_DIR" "$FIG_DIR/fig4.png"
-julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig5.jl "$PAPER_DIR" "$FIG_DIR/fig5.png" "data/mars_fields_without_crustal.vts"
-julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig6.jl "$PAPER_DIR" "$FIG_DIR/fig6.png"
-julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig7.jl "$PAPER_DIR" "$FIG_DIR/fig7.png" "data/mars_fields_without_crustal.vts"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig3.jl "$PDIR_NC" "$FIG_DIR/fig3.png"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig4.jl "$PDIR_NC" "$FIG_DIR/fig4.png" "data/mars_fields_without_crustal.vts"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig5.jl "$PDIR_NC" "$FIG_DIR/fig5.png"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig6.jl "$PDIR_NC" "$FIG_DIR/fig6.png" "data/mars_fields_without_crustal.vts"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig7.jl "$PDIR_NC" "$FIG_DIR/fig7.png"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig8.jl "$PDIR_WC" "$FIG_DIR/fig8.png" "$PDIR_NC" "data/mars_fields_with_crustal.vts"
 
 $env:TP_MHD_BENCHMARK_OUTPUT = "$FIG_DIR/figA1.png"
 julia --threads=auto --project=. examples/forward_tracing/tp_mhd_discrepancy_benchmark.jl

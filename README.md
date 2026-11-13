@@ -23,8 +23,8 @@ Required runtime inputs live in `data/`:
 
 Raw 3D BATSRUS Tecplot outputs live in `BATSRUS-data/`:
 
-- `BATSRUS-data/MHD-with-crustal/3d__var_1_n00150000.dat`
-- `BATSRUS-data/MHD-without-crustal/3d__var_1_n00120000.dat`
+- `BATSRUS-data/MHD-with-crustal/3d__var_1_n00120000.dat`
+- `BATSRUS-data/MHD-without-crustal/3d__var_1_n00150000.dat`
 
 The converted `.vts` files are not tracked in Git due to size. Run `scripts/convert_batsrus_mhd.jl` to convert both BATSRUS `.dat` files into structured spherical `.vts` files (`120 × 72 × 144`, from 200 km altitude to $4\,R_M$) and generate their corresponding `.mat` source-rate files:
 

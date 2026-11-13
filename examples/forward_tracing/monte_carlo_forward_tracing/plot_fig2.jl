@@ -71,8 +71,8 @@ function _read_cell_particles_csv(csv_path::AbstractString, target_cell_id::Int)
 end
 
 function plot_fig2(
-        out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures_with_crustal", "fig2.png");
-        vts_path::AbstractString = MarsTP.data_path("mars_fields_with_crustal.vts"),
+        out_png::AbstractString = joinpath(pwd(), "outputs", "paper_figures_without_crustal", "fig2.png");
+        vts_path::AbstractString = MarsTP.data_path("mars_fields_without_crustal.vts"),
         run_dir::AbstractString = "",
         sampling_mode::Symbol = :maxwellian_source,
         altitude_km::Real = 400.0,
@@ -145,7 +145,7 @@ function plot_fig2(
     vz_grid = collect(range(uz0 - span, uz0 + span; length = 241))
     fxz_exact = [
         (p0.n / (2.0 * pi * vth^2)) * exp(-((vx - ux0)^2 + (vz - uz0)^2) / (2.0 * vth^2))
-        for vz in vz_grid, vx in vx_grid
+            for vz in vz_grid, vx in vx_grid
     ]
 
     # Area element of one cell on 400 km grid for physical rate weight scale ~1.4e19 s^-1
@@ -277,10 +277,16 @@ function plot_fig2(
         ax.set_ylabel("Latitude (°)"; fontsize = 21)
     end
 
-    # (d) Local O2+ Maxwellian
+    # (d) Local O2+ Maxwellian (logarithmic color scale)
+    vmax_d = maximum(fxz_exact)
+    vmin_d = vmax_d * 1.0e-4
+    cmap_d = matplotlib.cm.get_cmap("turbo").copy()
+    ax_d.set_facecolor(cmap_d(0.0))
+    fxz_plot = max.(fxz_exact, vmin_d)
+    norm_d = matplotlib.colors.LogNorm(vmin = vmin_d, vmax = vmax_d)
     im_d = ax_d.pcolormesh(
-        vx_grid ./ 1.0e3, vz_grid ./ 1.0e3, fxz_exact;
-        cmap = "turbo", vmin = 0.0, vmax = maximum(fxz_exact),
+        vx_grid ./ 1.0e3, vz_grid ./ 1.0e3, fxz_plot;
+        cmap = cmap_d, norm = norm_d,
         shading = "auto", rasterized = true,
     )
     ax_d.set_aspect("equal")
@@ -307,13 +313,18 @@ function plot_fig2(
     cax_d = ax_d.inset_axes([1.035, 0.0, 0.045, 1.0])
     cb_d = fig.colorbar(im_d; cax = cax_d)
     cb_d.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
+    cb_d.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
     cb_d.set_label("\$f_{xz}\$ (s\$^2\$ m\$^{-5}\$)"; fontsize = 19.5)
 
-    # (e) Particle-rate weights
-    ord = sortperm(w_i)
+    # (e) Particle-rate weights (logarithmic color scale)
+    pos_w = findall(>(0.0), w_i)
+    ord = pos_w[sortperm(w_i[pos_w])]
+    vmax_e = maximum(w_i[ord])
+    vmin_e = max(vmax_e * 1.0e-4, minimum(w_i[ord]))
+    norm_e = matplotlib.colors.LogNorm(vmin = vmin_e, vmax = vmax_e)
     sc_e = ax_e.scatter(
         vx_s[ord] ./ 1.0e3, vz_s[ord] ./ 1.0e3;
-        c = w_i[ord], cmap = "turbo", vmin = 0.0, vmax = maximum(w_i),
+        c = w_i[ord], cmap = "turbo", norm = norm_e,
         s = 9, marker = "s", linewidths = 0, rasterized = true,
     )
     ax_e.set_xlim(extrema(vx_grid) ./ 1.0e3)
@@ -333,7 +344,7 @@ function plot_fig2(
     cax_e = ax_e.inset_axes([1.035, 0.0, 0.045, 1.0])
     cb_e = fig.colorbar(sc_e; cax = cax_e)
     cb_e.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
-    cb_e.ax.yaxis.get_offset_text().set_fontsize(17.5)
+    cb_e.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
     cb_e.set_label("\$w_i\$ (s\$^{-1}\$)"; fontsize = 19.5)
 
     mkpath(dirname(abspath(out_png)))
@@ -344,9 +355,8 @@ function plot_fig2(
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures_with_crustal", "fig2.png")
-    vts = length(ARGS) >= 2 ? ARGS[2] : MarsTP.data_path("mars_fields_with_crustal.vts")
+    out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures_without_crustal", "fig2.png")
+    vts = length(ARGS) >= 2 ? ARGS[2] : MarsTP.data_path("mars_fields_without_crustal.vts")
     mode = length(ARGS) >= 3 ? Symbol(ARGS[3]) : :maxwellian_source
     plot_fig2(out; vts_path = vts, sampling_mode = mode)
 end
-

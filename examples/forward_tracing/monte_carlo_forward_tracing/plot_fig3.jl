@@ -77,9 +77,9 @@ function _draw_mars_and_boundaries!(ax, plane::String; xmin::Real = -4.0)
 end
 
 function _default_paper_dir()
-    p1 = joinpath(pwd(), "outputs", "paper_figures_with_crustal")
+    p1 = joinpath(pwd(), "outputs", "paper_figures_without_crustal")
     isfile(joinpath(p1, "paper_analysis.jld2")) && return p1
-    return joinpath(pwd(), "outputs", "paper_figures_without_crustal")
+    return joinpath(pwd(), "outputs", "paper_figures_with_crustal")
 end
 
 function plot_fig3(
@@ -149,7 +149,7 @@ function plot_fig3(
         b_nT = if haskey(f, "fig3_B_nT")
             Vector{Float64}(f["fig3_B_nT"])
         else
-            [-0.12, 0.67, 0.00]
+            [-0.12, 0.67, 0.0]
         end
 
         (; fxz, vx_c, vz_c, vx_edges, vz_edges, ec, edges, def, psd_1d, epa_psd, pa_edges, u_bulk_kms, T_eV, b_nT)
@@ -241,8 +241,11 @@ function plot_fig3(
     ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 19.5)
     ax_d.text(0.96, 0.04, "(d)"; transform = ax_d.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
 
-    u_str = @sprintf("\$U_{bulk} = (%.1f, %.1f, %.1f)\$ km s\$^{-1}\$\n\$T = %.2f\$ eV", d.u_bulk_kms[1], d.u_bulk_kms[2], d.u_bulk_kms[3], d.T_eV)
-    ax_d.text(0.03, 0.93, u_str; transform = ax_d.transAxes, color = "white", fontsize = 14.2, va = "top", ha = "left", linespacing = 1.4)
+    _nz(v, tol) = abs(v) < tol ? 0.0 : v
+    u_str = @sprintf("\$U_{bulk} = (%.1f, %.1f, %.1f)\$ km s\$^{-1}\$\n\$T = %.2f\$ eV", _nz(d.u_bulk_kms[1], 0.05), _nz(d.u_bulk_kms[2], 0.05), _nz(d.u_bulk_kms[3], 0.05), d.T_eV)
+    ax_d.text(0.03, 0.94, u_str; transform = ax_d.transAxes, color = "white", fontsize = 12.5, va = "top", ha = "left", linespacing = 1.35, zorder = 10)
+    b_str = @sprintf("\$B = (%.2f, %.2f, %.2f)\$ nT", _nz(d.b_nT[1], 0.005), _nz(d.b_nT[2], 0.005), _nz(d.b_nT[3], 0.005))
+    ax_d.text(0.03, 0.04, b_str; transform = ax_d.transAxes, color = "white", fontsize = 11.5, va = "bottom", ha = "left", zorder = 10)
     cax_d = ax_d.inset_axes([1.035, 0.0, 0.046, 1.0])
     cb_d = fig.colorbar(im_d; cax = cax_d)
     cb_d.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
@@ -286,8 +289,6 @@ function plot_fig3(
     ax_f.set_ylabel("Energy (eV)"; fontsize = 19.5)
     ax_f.text(0.04, 0.04, "(f)"; transform = ax_f.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "bottom", ha = "left", zorder = 10)
 
-    b_str = @sprintf("\$B = (%.2f, %.2f, %.2f)\$ nT", d.b_nT[1], d.b_nT[2], d.b_nT[3])
-    ax_f.text(0.04, 0.92, b_str; transform = ax_f.transAxes, color = "white", fontsize = 15.5, va = "top", ha = "left")
     cax_f = ax_f.inset_axes([1.035, 0.0, 0.046, 1.0])
     cb_f = fig.colorbar(im_f; cax = cax_f)
     cb_f.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
@@ -307,4 +308,3 @@ if abspath(PROGRAM_FILE) == @__FILE__
     rdir = length(ARGS) >= 3 ? ARGS[3] : nothing
     plot_fig3(pdir, out; raw_run_dir = rdir)
 end
-
