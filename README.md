@@ -164,8 +164,9 @@ each record carries its original particle ID.
 - **Forward Tracing (`examples/forward_tracing/`)**:
   - `sphere_trajectories.jl`, `plot_sphere_trajectories.jl`, `plot_trajectories_xz_yz.jl`: 800 km spherical shell release trajectories in XZ/YZ planes.
   - `hemisphere_work.jl`, `plot_hemisphere_work.jl`: Dayside and nightside convective, Hall, and total work maps.
+  - `tp_mhd_discrepancy_benchmark.jl` & `tp_mhd_discrepancy.md`: 1D analytical outflow column benchmark (`AnalyticalOutflowColumn`, Appendix A / Fig. A1) explaining TP–MHD discrepancies and launch-altitude robustness.
   - `monte_carlo_shell.jl`, `analyze_monte_carlo.jl`, `maxwellian_source.jl`: Weighted Maxwellian shell Monte Carlo tracing and analysis.
-  - `monte_carlo_forward_tracing/`: Full shell Monte Carlo suite (`monte_carlo_shell.jl`, `run_incremental_chunks.jl`, `analyze_paper_results.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
+  - `monte_carlo_forward_tracing/`: Full shell Monte Carlo suite and manuscript figure pipeline (`monte_carlo_shell.jl`, `run_incremental_chunks.jl`, `analyze_paper_results.jl`, `populate_z_scan.jl`, `plot_fig1.jl`–`plot_fig7.jl`, `plot_altitude_energy_maps.jl`, `plot_trajectory_work_xz.jl`, `analyze_saved_probes.jl`, `plot_monte_carlo_sampling.jl`, `plot_bulk_speed_flux_maps.jl`, `plot_trajectories.jl`, `plot_library_psd.jl`, `satellite_orbit_distributions.jl`).
 - **Backward Tracing (`examples/backward_tracing/`)**:
   - `random_probe_backtrace.jl`, `plot_probe_backtrace.jl`: Random-velocity backtrace trajectories from `(0, 0, 2 Rm)`.
   - `probe_vdf_integrated.jl`, `plot_probe_vdf.jl`, `check_probe_vdf_grid.jl`: Velocity-integrated backtraced VDFs.

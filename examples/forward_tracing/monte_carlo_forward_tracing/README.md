@@ -378,6 +378,45 @@ Plotting uses `PyPlot` (calling Matplotlib). Trajectory backgrounds use [src/vis
 | [plot_library_psd.jl](plot_library_psd.jl) | Integrated two-dimensional VDFs |
 | [plot_bulk_speed_flux_maps.jl](plot_bulk_speed_flux_maps.jl) | Multi-altitude O2+ and O+ bulk-speed flux maps |
 
+## 5. Reproducing Manuscript Figures (Figures 1–7 and Appendix A)
+
+The production scripts below reproduce the tracing results and figures for the companion manuscript (`Testparticle_mars_paper.tex` in `MarsO2+`).
+
+| Manuscript Figure | Script | Description |
+| --- | --- | --- |
+| **Fig. 1** | [`plot_fig1.jl`](plot_fig1.jl) | MHD $\mathbf{B}$ (XY) and $\mathbf{E}_C, \mathbf{E}_H, \mathbf{E}_A$ (XZ) |
+| **Fig. 2** | [`plot_fig2.jl`](plot_fig2.jl) | 400 km $\mathrm{O}_2^+$ density, speed, temperature, Maxwellian $f_{xz}$, and weights $w_i$ |
+| **Fig. 3** | [`plot_fig3.jl`](plot_fig3.jl) | 3D trajectories (XZ, XY, YZ) and virtual detector VDF/DEF/pitch-angle distribution at $(-2, 0, 0)\,R_M$ |
+| **Fig. 4** | [`plot_fig4.jl`](plot_fig4.jl) | Circular virtual orbit ($2.5\,R_M$, $0^\circ\text{–}240^\circ$) PSD and mean cumulative work channels |
+| **Fig. 5** | [`plot_fig5.jl`](plot_fig5.jl) | Representative ions at $90^\circ, 120^\circ, 150^\circ$ (trajectories, power, cumulative work) |
+| **Fig. 6** | [`plot_fig6.jl`](plot_fig6.jl) | Cross-tail transect along $Y \in [-1, 1]\,R_M$ at $X = -2\,R_M, Z = +0.75\,R_M$ (plus `plot_fig6_z_scan`) |
+| **Fig. 7** | [`plot_fig7.jl`](plot_fig7.jl) | Representative ions at the current sheet center $(-2, 0, +0.75)\,R_M$ and lobe $(-2, -0.5, +0.75)\,R_M$ |
+| **Fig. A1** | [`../tp_mhd_discrepancy_benchmark.jl`](../tp_mhd_discrepancy_benchmark.jl) | Unified 6-panel 1D analytical benchmark for TP–MHD discrepancy and $z_0$ sensitivity |
+
+Supplementary diagnostics and analysis drivers in this folder:
+- [`run_incremental_chunks.jl`](run_incremental_chunks.jl) & [`analyze_paper_results.jl`](analyze_paper_results.jl): Run multi-chunk Monte Carlo ensembles and pool trajectories into `paper_analysis.jld2` and `trajectories_20000_sample.jld2` (and see [`../perlmutter/README.md`](../perlmutter/README.md) for Slurm production runs).
+- [`populate_z_scan.jl`](populate_z_scan.jl): Populate the 16-level cross-tail $Z$ scan (`tail_z_scan_*`) in an existing `paper_analysis.jld2`.
+- [`plot_altitude_energy_maps.jl`](plot_altitude_energy_maps.jl): Altitude shell energy maps ($0.25, 0.50, 0.75, 1.00\,R_M$) and electric-field work histograms.
+- [`plot_trajectory_work_xz.jl`](plot_trajectory_work_xz.jl): Cumulative electric-field work along $\mathrm{O}_2^+$ trajectories in the XZ plane.
+
+Run from the `MarsTP.jl` repository root to regenerate the manuscript figures into `MarsO2+/figures/`:
+
+```powershell
+$PAPER_DIR = "outputs/paper_figures_without_crustal"
+$FIG_DIR   = "C:/Users/henry/Documents/Research/MarsO2+/figures"
+
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig1.jl "$FIG_DIR/fig1.png" "data/mars_fields_without_crustal.vts"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig2.jl "$FIG_DIR/fig2.png" "data/mars_fields_without_crustal.vts"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig3.jl "$PAPER_DIR" "$FIG_DIR/fig3.png"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig4.jl "$PAPER_DIR" "$FIG_DIR/fig4.png"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig5.jl "$PAPER_DIR" "$FIG_DIR/fig5.png" "data/mars_fields_without_crustal.vts"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig6.jl "$PAPER_DIR" "$FIG_DIR/fig6.png"
+julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig7.jl "$PAPER_DIR" "$FIG_DIR/fig7.png" "data/mars_fields_without_crustal.vts"
+
+$env:TP_MHD_BENCHMARK_OUTPUT = "$FIG_DIR/figA1.png"
+julia --threads=auto --project=. examples/forward_tracing/tp_mhd_discrepancy_benchmark.jl
+```
+
 ## Validation of the bulk-speed update
 
 Validated with Julia 1.12+ and TestParticle 0.26.0 / BorisPushers 0.2.0. Checks include exact patch-rate normalization, both radial velocity signs with positive weights, independence from normal direction, zero rate at zero bulk speed, the explicit legacy estimator, and inward propagation below the source and analytic absorption at 200 km.

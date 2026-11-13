@@ -59,6 +59,7 @@ Whereas $m_e \to 0$ turns $-\nabla P_e$ into a true electrostatic field $\mathbf
 By contrast, collisionless test particles launched from a single shell $z_0$ along a parallel field ($\mathbf{B} = B_0\hat{\mathbf{z}}$, Panel **c**) without inter-particle collisions or volumetric sources above $z_0$ cannot convert thermal pressure into bulk flow acceleration:
 - With $E_\parallel = 0$ (`:conv_only`, blue dashed), particles coast at constant $v_z(z) = v_z(z_0)$ and reach only $U_z(600\ \mathrm{km}) = 0.75\ \mathrm{km/s}$.
 - Adding the ambipolar field $\mathbf{E}_A = -\nabla P_e / (q n_e)$ (`:conv_amb`) accelerates ions only to $1.31\ \mathrm{km/s}$ from $z_0 = 200\ \mathrm{km}$ (orange) or $2.35\ \mathrm{km/s}$ from $z_0 = 400\ \mathrm{km}$ (green), compared to $U_{z,\mathrm{MHD}}(600\ \mathrm{km}) = 3.85\ \mathrm{km/s}$.
+- In multi-species MHD, $\mathbf{E}_C = -\mathbf{U}_i \times \mathbf{B}$ uses the mass-weighted center-of-mass ion velocity $\mathbf{U}_i = (\sum_s \rho_s \mathbf{U}_s)/(\sum_s \rho_s)$ rather than the individual $\mathrm{O}_2^+$ velocity $\mathbf{U}_{\mathrm{O}_2^+}$.
 - Including the volumetric source $S_{\mathrm{net}}(z)$ and the effective fluid-closure force $-\nabla P_i / (q n)$ (red dotted) closes the momentum equation and reproduces $U_{z,\mathrm{MHD}}(z)$.
 
 ### Mechanism 3: Finite-Larmor-Radius (FLR) Gyromotion, Back-Gyration Loss, and Polarization Drift (Panels d & e)
@@ -89,4 +90,11 @@ julia --threads=auto --project=. examples/forward_tracing/tp_mhd_discrepancy_ben
 ```
 
 This invokes `AnalyticalOutflowColumn`, `benchmark_weighting_vdf`, and `trace_outflow_column` from `MarsTP` and writes `examples/forward_tracing/images/tp_mhd_discrepancy_6panel.png`.
+
+To regenerate Appendix Figure A1 directly in the companion `MarsO2+` manuscript repository:
+
+```powershell
+$env:TP_MHD_BENCHMARK_OUTPUT = "C:/Users/henry/Documents/Research/MarsO2+/figures/figA1.png"
+julia --threads=auto --project=. examples/forward_tracing/tp_mhd_discrepancy_benchmark.jl
+```
 
