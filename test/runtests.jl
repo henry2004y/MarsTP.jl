@@ -6,6 +6,7 @@ include("forward_domain_gpu.jl")
 include("forward_bounded.jl")
 include("detector_omni_def.jl")
 include("trajectory_io.jl")
+include("tp_mhd_discrepancy.jl")
 
 @testset "Electric work: Cartesian frame and signed energy" begin
     fields = MarsTP.FieldWorkInterpolators(_ -> SA[1., 0., 0.],

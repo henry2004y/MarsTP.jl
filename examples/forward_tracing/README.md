@@ -108,4 +108,4 @@ Work tests cover Cartesian consistency, signed work, backward time, single and m
 
 ## Monte Carlo source and detector distributions
 
-See [Monte Carlo forward tracing](monte_carlo_forward_tracing/README.md) for weighted source sampling, trajectory storage and detector VDFs.
+See [Monte Carlo forward tracing](monte_carlo_forward_tracing/README.md) for weighted source sampling, trajectory storage and detector VDFs, and [Source altitude sensitivity and TP–MHD discrepancy](tp_mhd_discrepancy.md) (`tp_mhd_discrepancy_benchmark.jl`) for the self-contained 1D analytical benchmark explaining why collisionless test-particle profiles differ from global MHD moments and how the electric-field work partition remains robust across launch altitudes $z_0$.

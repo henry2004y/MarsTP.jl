@@ -48,6 +48,10 @@ export Electric_field_work_profile, field_work_profile, particle_field_work
 export adiabatic_work_profile
 export get_work_rates, get_work_channels, get_magnetic_properties, get_adiabaticity
 export plot_vx_vz, load_detector_vdf, vdf_moments, refine_backtrace_config
+export AnalyticalOutflowColumn, column_vth, column_source_rate, column_mhd_flux
+export column_mhd_velocity, column_mhd_du_dz, column_mhd_density, column_dln_n_dz
+export column_magnetic_field, column_electric_fields, upward_maxwellian_flux
+export benchmark_weighting_vdf, trace_outflow_column
 export o2plus_production_density
 export MODELS, boundary_profile, plot_mars, bs_mpb, plot_mars_context
 export load_trajectories, plot_trajectory
@@ -73,6 +77,7 @@ include("tracing/forward_psd_accumulator.jl")
 include("tracing/trajectory_io.jl")
 include("analysis/electric_field_work.jl")
 include("analysis/detector_vdf.jl")
+include("analysis/tp_mhd_discrepancy.jl")
 include("visualization/mars.jl")
 include("visualization/plot_trajectory.jl")
 
