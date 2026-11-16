@@ -463,7 +463,7 @@ module ShellMonteCarlo
     end
 
     function release_particles(fields, source, c, actual_seed::Integer = _resolve_run_seed(c))
-        c.flux_model in ("n_bulk_speed_maxwellian", "n_speed_outward_maxwellian", "reservoir_maxwellian_rate") || error("Unsupported flux model")
+        c.flux_model in ("n_bulk_speed_maxwellian", "n_speed_outward_maxwellian", "reservoir_maxwellian_rate", "surface_flux_maxwellian") || error("Unsupported flux model")
         c.chunk_id >= 1 || error("chunk_id must be >= 1")
         radius = source.radius
         particles = NamedTuple[]
@@ -481,16 +481,29 @@ module ShellMonteCarlo
             mu = (cos(th0) + cos(th1)) / 2;ph = (ph0 + ph1) / 2
             er = Vec(sqrt(1 - mu^2) * cos(ph), sqrt(1 - mu^2) * sin(ph), mu)
             m = ionosphere_properties(source, er)
+            sigma_cell = m.Ti > 0 ? sqrt(TP.kB * m.Ti / mass) : 0.0
+            cell_flux = if c.flux_model == "surface_flux_maxwellian"
+                (m.n > 0 && sigma_cell > 0) ? maxwellian_surface_flux(m.n, dot(m.Ui, er), sigma_cell) : 0.0
+            else
+                m.flux
+            end
             push!(
                 cells, (;
-                    cellid, j, k, area, flux = m.flux, n = m.n, T = m.Ti, U = m.Ui,
+                    cellid, j, k, area, flux = cell_flux, n = m.n, T = m.Ti, U = m.Ui,
                     lon = rad2deg(ph), lat = asind(mu),
                 )
             )
-            if c.flux_model in ("n_bulk_speed_maxwellian", "reservoir_maxwellian_rate")
-                # Follow maxwellian_source.jl: one midpoint patch, N UNTRUNCATED draws.
-                # Bulk-speed rates retain both velocity signs; reservoir is an explicit legacy mode.
+            if c.flux_model in ("n_bulk_speed_maxwellian", "reservoir_maxwellian_rate", "surface_flux_maxwellian")
+                # Follow maxwellian_source.jl: one midpoint patch, N draws.
+                # Bulk-speed rates retain both velocity signs; reservoir/surface_flux use outward kinetic flux.
                 rng = _stream_rng(actual_seed, c.chunk_id, cellid, 0)
+                flux_sym = if c.flux_model == "n_bulk_speed_maxwellian"
+                    :bulk_speed
+                elseif c.flux_model == "surface_flux_maxwellian"
+                    :surface_flux
+                else
+                    :reservoir
+                end
                 sampled = sample_maxwellian_source(
                     c.per_cell; position_m = radius * er,
                     bulk_velocity_m_s = m.Ui, temperature_ev = TP.kB * m.Ti / 1.602176634e-19,
@@ -499,7 +512,7 @@ module ShellMonteCarlo
                         sampling_temperature_factor = c.sampling_temperature_factor
                     ),
                     normal = er, area_m2 = area, rng,
-                    flux_model = c.flux_model == "n_bulk_speed_maxwellian" ? :bulk_speed : :reservoir
+                    flux_model = flux_sym
                 )
                 for q in 1:c.per_cell
                     state = sampled.initial_states[q]
@@ -508,7 +521,7 @@ module ShellMonteCarlo
                     W = m.n > 0 ? sampled.rate_weights_s[q] : 0.0
                     density_weight = m.n > 0 ? sampled.density_weights_m3[q] : 0.0
                     logw = log(sampled.importance_weights[q])
-                    push!(particles, (; id, cellid, x, v, logw, W, flux = m.flux, area, density_weight))
+                    push!(particles, (; id, cellid, x, v, logw, W, flux = cell_flux, area, density_weight))
                 end
                 continue
             end
@@ -625,7 +638,7 @@ module ShellMonteCarlo
                 push!(sample_candidate_ids, pid)
             end
         end
-        rate_mode = c.flux_model in ("n_bulk_speed_maxwellian", "reservoir_maxwellian_rate")
+        rate_mode = c.flux_model in ("n_bulk_speed_maxwellian", "reservoir_maxwellian_rate", "surface_flux_maxwellian")
         if rate_mode
             meta["model"] = "steady_reservoir_mc_v2"
             meta["velocity_sampling"] = "sample_maxwellian_source: untruncated Cartesian Maxwellian at Ts=4Ti; local midpoint patch"
@@ -636,6 +649,13 @@ module ShellMonteCarlo
             meta["weight_reference"] = "examples/forward_tracing/monte_carlo_forward_tracing/README.md and src/tracing/monte_carlo_weight.jl"
             meta["sampling_caveat"] = "No rate self-normalization; inward samples have Q=0 and are retained without propagation"
             meta["source_flux_column_note"] = "source_flux_m2_s is n*norm(U) diagnostic only; rate weights use individual outward radial speed"
+        end
+        if c.flux_model == "surface_flux_maxwellian"
+            meta["model"] = "steady_surface_flux_mc_v4"
+            meta["velocity_sampling"] = "conditional outward drifting Maxwellian at Ts=sampling_temperature_factor*Ti (vr > 0)"
+            meta["weight_formula"] = "Q_i = n A (v_i dot er) P_s(vr>0) (g_i/gs_i) / N"
+            meta["sampling_caveat"] = "Unbiased one-way kinetic surface-flux importance weights with conditional outward draws (all trajectories outward)"
+            meta["source_flux_column_note"] = "source_flux_m2_s = exact analytical outward half-Maxwellian surface flux"
         end
         if c.flux_model == "n_bulk_speed_maxwellian"
             meta["model"] = "steady_bulk_speed_mc_v3"

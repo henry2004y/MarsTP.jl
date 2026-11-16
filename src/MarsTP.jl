@@ -42,7 +42,7 @@ export detector_omni_def
 export forward_psd, ForwardPSDAccumulator, accumulate_forward_psd!, finish_forward_psd
 export write_trajectory_batch, foreach_saved_trajectory, forward_psd_saved
 export MonteCarloWeight, thermal_speed_from_temperature_ev, maxwellian_importance_weight_3d
-export particle_density_weight, sample_maxwellian_source
+export particle_density_weight, sample_maxwellian_source, maxwellian_surface_flux
 export trajectory_work, build_field_work_interpolators, field_work
 export Electric_field_work_profile, field_work_profile, particle_field_work
 export adiabatic_work_profile
@@ -51,7 +51,7 @@ export plot_vx_vz, load_detector_vdf, vdf_moments, refine_backtrace_config
 export AnalyticalOutflowColumn, column_vth, column_source_rate, column_mhd_flux
 export column_mhd_velocity, column_mhd_du_dz, column_mhd_density, column_dln_n_dz
 export column_magnetic_field, column_electric_fields, upward_maxwellian_flux
-export benchmark_weighting_vdf, trace_outflow_column
+export benchmark_weighting_vdf, benchmark_parallel_gradpi, trace_outflow_column
 export o2plus_production_density
 export MODELS, boundary_profile, plot_mars, bs_mpb, plot_mars_context
 export load_trajectories, plot_trajectory

@@ -259,6 +259,7 @@ function compute_altitude_energy_maps(;
         n_chunks::Int = 1,
         tmax::Float64 = 1000.0,
         dt::Float64 = 0.1,
+        flux_model::String = get(ENV, "FLUX_MODEL", "n_bulk_speed_maxwellian"),
         base_seed::Int = 20260906,
         recompute::Bool = false,
     )
@@ -313,6 +314,7 @@ function compute_altitude_energy_maps(;
         random_seed = false,
         tmax,
         dt,
+        flux_model,
         fields_path = resolved_vts,
     )
 
@@ -367,6 +369,7 @@ function compute_altitude_energy_maps(;
             random_seed = false,
             tmax,
             dt,
+            flux_model,
             fields_path = resolved_vts,
             chunk_id,
         )
@@ -530,6 +533,7 @@ function compute_altitude_energy_maps(;
         f["mean_vr_ms"]          = mean_vr_ms
         f["hits"]                = hits_tot
         f["total_particles"]     = total_particles
+        f["flux_model"]          = flux_model
         f["vts_file"]            = basename(resolved_vts)
     end
     println("Saved altitude energy & work histogram dataset to: ", abspath(cache_jld2))
@@ -1165,6 +1169,7 @@ function plot_altitude_energy_maps(
         n_chunks::Int = 1,
         r_outer_Rm::Float64 = 3.0,
         tmax::Float64 = 1000.0,
+        flux_model::String = get(ENV, "FLUX_MODEL", "n_bulk_speed_maxwellian"),
         recompute::Bool = false,
         weighting::Symbol = :residence, # :residence (<E>_τ), :flux (<E>_flux), or :mhd
         vmin_eV::Float64 = 1.0e-1,
@@ -1179,6 +1184,7 @@ function plot_altitude_energy_maps(
         n_chunks,
         r_outer_Rm,
         tmax,
+        flux_model,
         recompute,
     )
 
@@ -1321,6 +1327,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     per_cell = length(ARGS) >= 3 ? parse(Int, ARGS[3]) : 50
     n_chunks = length(ARGS) >= 4 ? parse(Int, ARGS[4]) : 1
     recompute = length(ARGS) >= 5 ? (lowercase(ARGS[5]) in ("true", "1", "yes")) : false
+    flux_model = length(ARGS) >= 6 ? String(ARGS[6]) : get(ENV, "FLUX_MODEL", "n_bulk_speed_maxwellian")
 
     jld_file = joinpath(dirname(abspath(out_png)), "altitude_energy_maps_025_050_075_100Rm.jld2")
     plot_altitude_energy_maps(
@@ -1332,6 +1339,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
         per_cell,
         n_chunks,
         r_outer_Rm = 3.0,
+        flux_model,
         recompute,
     )
 end

@@ -17,6 +17,7 @@
 #   CELL_STRIDE            : angular cell stride (default: 1 -> all 10,153 cells)
 #   DT_S                   : Boris timestep in seconds (default: 0.1)
 #   TMAX_S                 : max flight time in seconds (default: 1000.0)
+#   FLUX_MODEL             : source weighting model (default: "n_bulk_speed_maxwellian"; also "surface_flux_maxwellian")
 #   BATCH_SIZE             : particle batch size (default: 4096)
 #   SAVE_TRAJECTORIES      : "roi_and_sample" (default), "outer_only", "probes_only", "all", "none"
 #   SAVE_STRIDE            : trajectory output stride (default: 5 -> 0.5 s cadence)
@@ -71,6 +72,7 @@ function main()
     save_stride = parse(Int, get(ENV, "SAVE_STRIDE", "5"))
     trajectory_sample_size = parse(Int, get(ENV, "SAMPLE_SIZE", "20000"))
     skip_inner_and_trapped = lowercase(get(ENV, "SKIP_INNER_TRAPPED", "true")) == "true"
+    flux_model = strip(get(ENV, "FLUX_MODEL", "n_bulk_speed_maxwellian"))
     tracing_backend = Symbol(lowercase(get(ENV, "TRACING_BACKEND", "cpu")))
     random_seed = lowercase(get(ENV, "RANDOM_SEED", "true")) == "true"
     base_seed = parse(Int, get(ENV, "BASE_SEED", "20260906"))
@@ -83,6 +85,7 @@ function main()
     println("  per_cell / cell_stride = $per_cell / $cell_stride")
     println("  altitude / absorption  = $altitude_km km / $absorption_altitude_km km")
     println("  dt / tmax              = $dt s / $tmax s")
+    println("  flux_model             = $flux_model")
     println("  save_trajectories      = $save_trajectories (stride=$save_stride, skip_inner_trapped=$skip_inner_and_trapped)")
     println("  tracing_backend        = $tracing_backend (threads=$(Threads.nthreads()))")
     println("  random_seed            = $random_seed")
@@ -110,6 +113,7 @@ function main()
             batch_size,
             dt,
             tmax,
+            flux_model,
             tracing_backend,
             fields_path,
             include_gradpe_work = true,

@@ -75,6 +75,7 @@ function plot_fig2(
         vts_path::AbstractString = MarsTP.data_path("mars_fields_without_crustal.vts"),
         run_dir::AbstractString = "",
         sampling_mode::Symbol = :maxwellian_source,
+        flux_model::Symbol = :surface_flux,
         altitude_km::Real = 400.0,
         sample_lon_deg::Real = 300.0,
         sample_lat_deg::Real = -60.0,
@@ -174,7 +175,7 @@ function plot_fig2(
             normal = er0,
             area_m2 = area_cell,
             rng = rng,
-            flux_model = :bulk_speed,
+            flux_model = flux_model,
         )
         vx_s = [Float64(s[4]) for s in sampled.initial_states]
         vy_s = [Float64(s[5]) for s in sampled.initial_states]
@@ -358,5 +359,6 @@ if abspath(PROGRAM_FILE) == @__FILE__
     out = length(ARGS) >= 1 ? ARGS[1] : joinpath(pwd(), "outputs", "paper_figures_without_crustal", "fig2.png")
     vts = length(ARGS) >= 2 ? ARGS[2] : MarsTP.data_path("mars_fields_without_crustal.vts")
     mode = length(ARGS) >= 3 ? Symbol(ARGS[3]) : :maxwellian_source
-    plot_fig2(out; vts_path = vts, sampling_mode = mode)
+    fmodel = length(ARGS) >= 4 ? Symbol(ARGS[4]) : :surface_flux
+    plot_fig2(out; vts_path = vts, sampling_mode = mode, flux_model = fmodel)
 end

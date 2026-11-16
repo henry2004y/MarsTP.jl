@@ -5,7 +5,7 @@
 #SBATCH --qos=regular
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=256
-#SBATCH --time=02:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=logs/analyze_%j.out
 #SBATCH --error=logs/analyze_%j.err
 
@@ -25,6 +25,7 @@ command -v julia &>/dev/null || module load julia 2>/dev/null || true
 export JULIA_NUM_THREADS="${JULIA_NUM_THREADS:-64}"
 export CASE="${CASE:-with_crustal}"
 export ANALYZE_MODE="${ANALYZE_MODE:-incremental}"
+export CLEAN_INTERMEDIATE="${CLEAN_INTERMEDIATE:-true}"
 export OUT_PREFIX="${OUT_PREFIX:-${SCRATCH:-$PWD/outputs}/MarsTP_outputs/mc_400km_${CASE}}"
 export MPLBACKEND="Agg"
 

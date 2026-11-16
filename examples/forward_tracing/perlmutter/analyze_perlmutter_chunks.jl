@@ -48,7 +48,7 @@ function analyze_discovered_chunks(base_prefix::AbstractString, mode::String = "
     paper_dirs = String[]
     cum_particles = 0
     for (k, cdir) in enumerate(chunk_dirs)
-        c_paper = @sprintf("%s_chunk_%03d_paper", base_prefix, k)
+        c_paper = isdir("$(cdir)_paper") ? "$(cdir)_paper" : @sprintf("%s_chunk_%03d_paper", base_prefix, k)
         pdir = @sprintf("%s_cum_%03d_paper", base_prefix, k)
         push!(chunk_paper_dirs, c_paper)
         push!(paper_dirs, pdir)
@@ -100,7 +100,87 @@ function analyze_discovered_chunks(base_prefix::AbstractString, mode::String = "
         plot_convergence_history(history, "$(base_prefix)_convergence.png")
     end
     println("Saved convergence report to $conv_toml")
-    return last(paper_dirs)
+
+    final_dir = "$(base_prefix)_final_paper"
+    isdir(final_dir) && rm(final_dir; recursive = true, force = true)
+    cp(last(paper_dirs), final_dir; force = true)
+    println("Copied pooled final result to $final_dir")
+
+    chunk_summaries = Dict{String, Any}[]
+    for cpdir in chunk_paper_dirs
+        spath = joinpath(cpdir, "chunk_summary.toml")
+        isfile(spath) && push!(chunk_summaries, TOML.parsefile(spath))
+    end
+    if !isempty(chunk_summaries)
+        n_c = length(chunk_summaries)
+        n_launched = 0
+        n_saved_csv = 0
+        n_outer = 0
+        n_inner = 0
+        n_other = 0
+        source_rates = Float64[]
+        outer_rates = Float64[]
+        out_w_work = 0.0
+        out_w_conv = 0.0
+        out_w_hall = 0.0
+        out_w_gradpe = 0.0
+        out_w_sum = 0.0
+        for cs in chunk_summaries
+            ms = get(cs, "metadata", nothing)
+            sc = get(cs, "source_cells", nothing)
+            ps = get(cs, "particles", nothing)
+            ms !== nothing && (n_launched += Int(get(ms, "n_particles", 0)))
+            sc !== nothing && push!(source_rates, Float64(get(sc, "source_shell_rate_s1", 0.0)))
+            ps === nothing && continue
+            n_saved_csv += Int(get(ps, "n_saved_csv", 0))
+            n_outer += Int(ps["n_outer"])
+            n_inner += Int(ps["n_inner"])
+            n_other += Int(ps["n_other"])
+            r_o = Float64(ps["outer_rate_s1"])
+            push!(outer_rates, r_o)
+            out_w_work += Float64(ps["outer_weighted_work_eV"])
+            out_w_conv += Float64(get(ps, "outer_weighted_work_conv_eV", 0.0))
+            out_w_hall += Float64(get(ps, "outer_weighted_work_hall_eV", 0.0))
+            out_w_gradpe += Float64(get(ps, "outer_weighted_work_gradpe_eV", 0.0))
+            out_w_sum += r_o
+        end
+        mean_src = isempty(source_rates) ? NaN : sum(source_rates) / length(source_rates)
+        mean_out = isempty(outer_rates) ? NaN : sum(outer_rates) / length(outer_rates)
+        std_out = length(outer_rates) > 1 ? sqrt(sum(x -> (x - mean_out)^2, outer_rates) / (length(outer_rates) - 1)) : 0.0
+        agg = Dict{String, Any}(
+            "n_chunks" => n_c,
+            "flux_model" => String(get(first(chunk_summaries), "flux_model", "")),
+            "n_launched" => n_launched,
+            "n_saved_csv" => n_saved_csv,
+            "n_outer" => n_outer,
+            "n_inner" => n_inner,
+            "n_other" => n_other,
+            "source_shell_rate_s1" => mean_src,
+            "mean_outer_rate_s1" => mean_out,
+            "std_outer_rate_s1" => std_out,
+            "escape_fraction_rate" => mean_src > 0 ? mean_out / mean_src : NaN,
+            "escape_fraction_count" => n_launched > 0 ? n_outer / n_launched : NaN,
+            "mean_outer_work_eV" => out_w_sum > 0 ? out_w_work / out_w_sum : NaN,
+            "mean_outer_work_conv_eV" => out_w_sum > 0 ? out_w_conv / out_w_sum : NaN,
+            "mean_outer_work_hall_eV" => out_w_sum > 0 ? out_w_hall / out_w_sum : NaN,
+            "mean_outer_work_gradpe_eV" => out_w_sum > 0 ? out_w_gradpe / out_w_sum : NaN,
+            "chunks" => chunk_summaries,
+        )
+        open(joinpath(final_dir, "ensemble_escape_summary.toml"), "w") do io
+            TOML.print(io, agg)
+        end
+        println("Saved ensemble escape summary to $(joinpath(final_dir, "ensemble_escape_summary.toml"))")
+    end
+
+    clean_intermediate = lowercase(strip(get(ENV, "CLEAN_INTERMEDIATE", "false"))) == "true"
+    if clean_intermediate && isfile(joinpath(final_dir, "paper_analysis.jld2")) && isfile(conv_toml)
+        println("CLEAN_INTERMEDIATE=true: removing intermediate chunk and cumulative directories...")
+        for d in vcat(chunk_dirs, chunk_paper_dirs, paper_dirs)
+            isdir(d) && rm(d; recursive = true, force = true)
+        end
+    end
+
+    return final_dir
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__

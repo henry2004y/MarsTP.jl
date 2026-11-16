@@ -5,7 +5,7 @@
 #SBATCH --qos=regular
 #SBATCH --nodes=1
 #SBATCH --cpus-per-task=256
-#SBATCH --time=01:30:00
+#SBATCH --time=01:00:00
 #SBATCH --output=logs/pre_cpu_%A_%a.out
 #SBATCH --error=logs/pre_cpu_%A_%a.err
 
@@ -22,6 +22,7 @@ export MPLBACKEND="Agg"
 CASE="${CASE:-with_crustal}"
 PER_CELL="${PER_CELL:-500}"
 CELL_STRIDE="${CELL_STRIDE:-1}"
+FLUX_MODEL="${FLUX_MODEL:-surface_flux_maxwellian}"
 CHUNK_ID="${SLURM_ARRAY_TASK_ID:-2}"
 OUT_PREFIX="${OUT_PREFIX:-${SCRATCH:-$PWD/outputs}/MarsTP_outputs/mc_400km_${CASE}}"
 
@@ -33,5 +34,5 @@ fi
 
 julia --threads="$JULIA_NUM_THREADS" --project=. \
     examples/forward_tracing/perlmutter/precompute_chunk_worker.jl \
-    "$OUT_PREFIX" "$CHUNK_ID" "$PER_CELL" "$CELL_STRIDE" "$FIELDS_PATH"
+    "$OUT_PREFIX" "$CHUNK_ID" "$PER_CELL" "$CELL_STRIDE" "$FIELDS_PATH" "$FLUX_MODEL"
 

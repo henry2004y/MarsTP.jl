@@ -79,6 +79,15 @@ function plot_fig8(
     orb_nc = _compute_orbit_work_1d(nc_jld)
     sh_wc = _shell_1Rm_shares(joinpath(with_crustal_dir, "altitude_energy_maps_025_050_075_100Rm.jld2"))
     sh_nc = _shell_1Rm_shares(joinpath(without_crustal_dir, "altitude_energy_maps_025_050_075_100Rm.jld2"))
+    roi_wc = jldopen(wc_jld, "r") do f
+        n_c = max(Float64(get(f, "raw_n_chunks", 1)), 1.0)
+        (sum(f["orbit_hits"]) + sum(f["tail_hits"])) / n_c
+    end
+    roi_nc = jldopen(nc_jld, "r") do f
+        n_c = max(Float64(get(f, "raw_n_chunks", 1)), 1.0)
+        (sum(f["orbit_hits"]) + sum(f["tail_hits"])) / n_c
+    end
+    roi_drop_pct = roi_nc > 0 ? 100.0 * (1.0 - roi_wc / roi_nc) : NaN
 
     tail_z = jldopen(wc_jld, "r") do f
         haskey(f, "tail_z_scan_Rm") || error("tail_z_scan_Rm missing in $wc_jld")
@@ -189,8 +198,8 @@ function plot_fig8(
 
     if sh_wc !== nothing && sh_nc !== nothing
         badge = @sprintf(
-            "1.0 \$R_M\$ shell shares:\nWith crustal: C %.0f%% | H %.0f%% | A %.0f%%\nNo crustal:   C %.0f%% | H %.0f%% | A %.0f%%\n~69%% lower ROI flux (trapping)",
-            sh_wc[1], sh_wc[2], sh_wc[3], sh_nc[1], sh_nc[2], sh_nc[3],
+            "1.0 \$R_M\$ shell shares:\nWith crustal: C %.0f%% | H %.0f%% | A %.0f%%\nNo crustal:   C %.0f%% | H %.0f%% | A %.0f%%\n~%.0f%% lower ROI hits (trapping)",
+            sh_wc[1], sh_wc[2], sh_wc[3], sh_nc[1], sh_nc[2], sh_nc[3], roi_drop_pct,
         )
         ax_b.text(
             0.97, 0.95, badge;
@@ -252,7 +261,7 @@ function plot_fig8(
     ax_d.set_title("Asymmetric Hall work at \$Z = +0.75\\,R_M\$"; fontsize = 19, pad = 8)
     ax_d.text(0.03, 0.94, "(d)"; transform = ax_d.transAxes, color = "white", fontsize = 20.5, fontweight = "bold", va = "top", ha = "left", zorder = 10)
     ax_d.text(0.96, 0.94, "\$\\langle\\varepsilon_H\\rangle\$"; transform = ax_d.transAxes, color = "white", fontsize = 20.5, va = "top", ha = "right", zorder = 10)
-    ax_d.text(tail_z.ycs_075 + 0.04, 4.5e3, "\$Y_{CS}=+0.36\$"; color = "#ffd700", fontsize = 14.5, fontweight = "bold", va = "top", ha = "left", zorder = 9)
+    ax_d.text(tail_z.ycs_075 + 0.04, 4.5e3, "\$Y_{CS}=$(@sprintf("%+.2f", tail_z.ycs_075))\$"; color = "#ffd700", fontsize = 14.5, fontweight = "bold", va = "top", ha = "left", zorder = 9)
     ax_d.text(-0.04, 4.5e3, "\$Y=0\$"; color = "0.90", fontsize = 14.5, va = "top", ha = "right", zorder = 9)
 
     cb_d = fig.colorbar(im_d; ax = ax_d, fraction = 0.046, pad = 0.025)

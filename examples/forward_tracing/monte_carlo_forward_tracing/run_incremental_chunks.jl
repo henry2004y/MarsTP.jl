@@ -101,6 +101,7 @@ function run_incremental_chunks(
         keep_raw_batches::Bool = false,
         keep_first_chunk_raw::Bool = true,
         render_plots::Bool = true,
+        flux_model::String = get(ENV, "FLUX_MODEL", "n_bulk_speed_maxwellian"),
     )
     chunk_dirs = String[]
     chunk_paper_dirs = String[]
@@ -161,6 +162,7 @@ function run_incremental_chunks(
                 packed_trajectories = true,
                 trajectory_float32 = true,
                 skip_inner_and_trapped,
+                flux_model,
                 chunk_id = k,
             )
             println("=== Running Chunk $k/$n_chunks -> $cdir (seed=$chunk_seed, chunk_id=$k, per_cell=$per_cell, cell_stride=$cell_stride) ===")

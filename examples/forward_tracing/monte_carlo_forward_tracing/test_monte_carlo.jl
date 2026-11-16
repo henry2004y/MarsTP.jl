@@ -99,6 +99,33 @@ end
     end
 end
 
+@testset "Outward surface-flux Maxwellian source" begin
+    radius = Rm + 400e3
+    fields = MHDFields([radius, Router], [0.0, pi / 2, pi], [0.0, pi, 2pi], zeros(3, 2, 3, 3), zeros(3, 2, 3, 3), :total, "")
+    sigma = sqrt(MarsTP.TP.kB * 1000.0 / MarsTP.TP.SpeciesDict["O2+"].m)
+    @test maxwellian_surface_flux(1e6, 0.0, sigma) ≈ 1e6 * sigma / sqrt(2pi)
+    @test isapprox(maxwellian_surface_flux(1e6, 10.0 * sigma, sigma), 1e6 * 10.0 * sigma; rtol = 1e-10)
+
+    src_zero = IonosphereSource(x -> 1e6, x -> 1000.0, (x -> 0.0, x -> 0.0, x -> 0.0), radius)
+    c_zero = MC.Config(per_cell = 4000, flux_model = "surface_flux_maxwellian", sampling_temperature_factor = 4.0)
+    particles0, _ = MC.release_particles(fields, src_zero, c_zero, 1234)
+    @test all(p -> p.W > 0 && dot(p.x, p.v) > 0, particles0)
+    analytic0 = 1e6 * 4pi * radius^2 * sigma / sqrt(2pi)
+    @test isapprox(sum(p.W for p in particles0), analytic0; rtol = 0.02)
+
+    U = SA[-1000.0, 200.0, 300.0]
+    src_ob = IonosphereSource(x -> 1e6, x -> 1000.0, (x -> U[1], x -> U[2], x -> U[3]), radius)
+    c_ob = MC.Config(per_cell = 5000, flux_model = "surface_flux_maxwellian", sampling_temperature_factor = 4.0)
+    particles_ob, cells_ob = MC.release_particles(fields, src_ob, c_ob, 5678)
+    @test all(p -> p.W > 0 && dot(p.x, p.v) > 0, particles_ob)
+    for cell in cells_ob
+        er = normalize(cell.U .* 0.0 + SA[cosd(cell.lat) * cosd(cell.lon), cosd(cell.lat) * sind(cell.lon), sind(cell.lat)])
+        localp = filter(p -> p.cellid == cell.cellid, particles_ob)
+        @test isapprox(cell.flux, upward_maxwellian_flux(cell.n, dot(cell.U, er), sigma); rtol = 1e-3)
+        @test isapprox(sum(p.W for p in localp), cell.flux * cell.area; rtol = 0.03)
+    end
+end
+
 @testset "Boris transport, boundaries, residence" begin
     TP=MarsTP.TP
     species=TP.SpeciesDict["O2+"]
