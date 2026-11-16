@@ -12,7 +12,7 @@
 # Hall electric field E_H = (J x B) / (q n), alongside E_C = -U x B and
 # E_A = -(1 / q n) dP_e/dz.
 
-const _MU0 = 4e-7 * π
+const _MU0 = 4.0e-7 * π
 
 """
     AnalyticalOutflowColumn(; kwargs...)
@@ -22,17 +22,21 @@ Self-contained 1D analytical Martian dayside ionospheric outflow column on
 Manuscript Eq. 5).
 
 Contains smooth analytical profiles for:
-- Net volumetric ion production `S_net(z) = P(z) - L(z)` [m⁻³ s⁻¹]
+- Net volumetric ionospheric `O₂⁺` production `S_net(z) = P(z) - L(z)` [m⁻³ s⁻¹],
+  concentrated in the lower ionosphere (`< 300 km`) and negligible above `400 km`
 - Upward MHD number flux `Γ_MHD(z) = n_MHD(z) * U_z(z)` [m⁻² s⁻¹] satisfying
   `dΓ_MHD/dz = S_net(z)`
-- Vertical MHD bulk outflow velocity `U_z(z)` [m/s] and sheared horizontal flow
-  `U_y(z)` [m/s] (from the `J × B` magnetic tension force in an oblique draped field)
+- Smooth strictly decreasing MHD ion density profile `n_MHD(z)` [m⁻³] (ionospheric +
+  MPB-transition + asymptotic sheath exponentials) with implied upward MHD bulk
+  outflow velocity `U_z(z) = Γ_MHD(z) / n_MHD(z)` [m/s] (`dU_z/dz > 0`) and sheared
+  horizontal flow `U_y(z)` [m/s] (from the `J × B` magnetic tension force in an oblique
+  draped field)
 - Oblique draped magnetic field `B(z) = (B_x(z), 0, B_z)` [T], where `B_x(z)` is
   chosen self-consistently so that magnetic pressure + tension balance the 1D
   MHD vertical momentum equation `m n U_z dU_z/dz = (J × B)_z - d(P_e + P_i)/dz`,
   while the upstream solar-wind motional electric field `E_{C,y} = -U_z(z) B_x(z)`
   plus Hall `E_H = (J × B)/(q n)` and ambipolar `E_A = -(1/q n) dP_e/dz` accelerate
-  the ions.
+  the collisionless ions via pure Lorentz motion `q(E + V × B)`.
 """
 Base.@kwdef struct AnalyticalOutflowColumn
     species::String = "O2+"
@@ -41,21 +45,23 @@ Base.@kwdef struct AnalyticalOutflowColumn
     T_i_K::Float64 = 1500.0
     T_e_K::Float64 = 2000.0
     z_min::Float64 = 150.0e3
-    z_max::Float64 = 800.0e3
+    z_max::Float64 = 920.0e3
     z_inner::Float64 = 200.0e3
-    Gamma_base::Float64 = 2.0e11
-    S0::Float64 = 1.5e7
-    z_prod_peak::Float64 = 220.0e3
-    H_prod_decay::Float64 = 70.0e3
-    z_prod_base::Float64 = 180.0e3
-    H_prod_rise::Float64 = 40.0e3
-    u_base::Float64 = 300.0
-    u_asymp::Float64 = 3700.0
-    z_accel::Float64 = 380.0e3
-    H_accel::Float64 = 140.0e3
-    Bx_top::Float64 = 14.0e-9
-    Bz0::Float64 = 5.0e-9
-    alpha_hall::Float64 = 0.35
+    Gamma_base::Float64 = 0.25e11
+    S0::Float64 = 6.2e6
+    z_prod_peak::Float64 = 205.0e3
+    H_prod_decay::Float64 = 40.0e3
+    z_prod_base::Float64 = 185.0e3
+    H_prod_rise::Float64 = 20.0e3
+    z_ref::Float64 = 200.0e3
+    n_iono::Float64 = 1.45e8
+    H_iono::Float64 = 46.0e3
+    n_mpb::Float64 = 1.15e8
+    H_mpb::Float64 = 125.0e3
+    n_asymp::Float64 = 0.26e8
+    Bx_top::Float64 = 15.0e-9
+    Bz0::Float64 = 1.2e-9
+    alpha_hall::Float64 = 0.32
 end
 
 """1D thermal speed `v_th = sqrt(k_B * T_i / m)` [m/s]."""
@@ -66,7 +72,7 @@ function column_source_rate(col::AnalyticalOutflowColumn, z::Real)
     zf = Float64(z)
     zf <= col.z_prod_base && return 0.0
     return col.S0 * exp(-(zf - col.z_prod_peak) / col.H_prod_decay) *
-           (1.0 - exp(-(zf - col.z_prod_base) / col.H_prod_rise))
+        (1.0 - exp(-(zf - col.z_prod_base) / col.H_prod_rise))
 end
 
 """Exact analytical integral of `column_source_rate` from `z_prod_base` to `z` plus `Gamma_base` [m⁻² s⁻¹]."""
@@ -81,31 +87,35 @@ function column_mhd_flux(col::AnalyticalOutflowColumn, z::Real)
     return col.Gamma_base + integral
 end
 
-"""Vertical MHD bulk speed `U_z(z)` [m/s] and its exact vertical derivative `dU_z/dz` [s⁻¹]."""
-function column_mhd_velocity(col::AnalyticalOutflowColumn, z::Real)
-    zf = Float64(z)
-    arg = (zf - col.z_accel) / col.H_accel
-    return col.u_base + 0.5 * col.u_asymp * (1.0 + tanh(arg))
+"""Smooth strictly decreasing MHD ion number density `n_MHD(z)` [m⁻³]."""
+function column_mhd_density(col::AnalyticalOutflowColumn, z::Real)
+    dz = Float64(z) - col.z_ref
+    return col.n_iono * exp(-dz / col.H_iono) + col.n_mpb * exp(-dz / col.H_mpb) + col.n_asymp
 end
 
+"""Exact analytical vertical derivative `dn_MHD/dz` [m⁻⁴]."""
+function column_dn_dz(col::AnalyticalOutflowColumn, z::Real)
+    dz = Float64(z) - col.z_ref
+    return -(col.n_iono / col.H_iono) * exp(-dz / col.H_iono) -
+        (col.n_mpb / col.H_mpb) * exp(-dz / col.H_mpb)
+end
+
+"""Exact logarithmic density gradient `d(ln n_MHD)/dz` [m⁻¹]."""
+function column_dln_n_dz(col::AnalyticalOutflowColumn, z::Real)
+    return column_dn_dz(col, z) / column_mhd_density(col, z)
+end
+
+"""Vertical MHD bulk outflow speed `U_z(z) = Γ_MHD(z) / n_MHD(z)` [m/s]."""
+function column_mhd_velocity(col::AnalyticalOutflowColumn, z::Real)
+    return column_mhd_flux(col, z) / column_mhd_density(col, z)
+end
+
+"""Exact vertical bulk velocity derivative `dU_z/dz` [s⁻¹]."""
 function column_mhd_du_dz(col::AnalyticalOutflowColumn, z::Real)
     zf = Float64(z)
-    arg = (zf - col.z_accel) / col.H_accel
-    return 0.5 * (col.u_asymp / col.H_accel) * sech(arg)^2
-end
-
-"""MHD ion number density `n_MHD(z) = Γ_MHD(z) / U_z(z)` [m⁻³]."""
-function column_mhd_density(col::AnalyticalOutflowColumn, z::Real)
-    return column_mhd_flux(col, z) / column_mhd_velocity(col, z)
-end
-
-"""Logarithmic density gradient `d(ln n_MHD)/dz` [m⁻¹]."""
-function column_dln_n_dz(col::AnalyticalOutflowColumn, z::Real)
-    zf = clamp(Float64(z), col.z_min, col.z_max)
-    eps_z = 25.0
-    n_hi = column_mhd_density(col, zf + eps_z)
-    n_lo = column_mhd_density(col, zf - eps_z)
-    return (log(n_hi) - log(n_lo)) / (2.0 * eps_z)
+    n_loc = column_mhd_density(col, zf)
+    uz = column_mhd_flux(col, zf) / n_loc
+    return (column_source_rate(col, zf) - uz * column_dn_dz(col, zf)) / n_loc
 end
 
 """
@@ -120,8 +130,10 @@ Evaluate the magnetic field `B(z)` [T] for the 1D outflow column:
   isolating parallel field-aligned acceleration where `E × B = 0`.
 - `b_geometry = :horizontal`: Purely horizontal draped field `B(z) = (B_x(z), 0, 0)`.
 """
-function column_magnetic_field(col::AnalyticalOutflowColumn, z::Real;
-                               b_geometry::Symbol = :oblique)
+function column_magnetic_field(
+        col::AnalyticalOutflowColumn, z::Real;
+        b_geometry::Symbol = :oblique
+    )
     b_geometry in (:oblique, :parallel, :horizontal) ||
         throw(ArgumentError("b_geometry must be :oblique, :parallel, or :horizontal"))
     b_geometry == :parallel && return SA[0.0, 0.0, hypot(col.Bx_top, col.Bz0)]
@@ -167,17 +179,19 @@ for the 1D oblique draped column:
   thermal pressure gradients
 - `E_A = -(1 / (q n)) ∇P_e = (0, 0, -(k_B T_e / q) d(ln n)/dz)`: ambipolar field
 - Optional effective fluid-closure force `E_gradpi = -(1 / (q n)) ∇P_i` when
-  `include_gradpi=true` (representing collisional conversion of ion thermal enthalpy).
+  `include_gradpi=true` (representing isotropic scalar-pressure fluid closure of ion thermal enthalpy).
 
 ### `e_mode` options:
 - `:conv_only`: only `E_C = (0, -U_z B_x, 0)` (no parallel/vertical force `E_H + E_A` along `B_z`)
 - `:conv_amb`: `E_C + E_A` (includes ambipolar `-∇P_e/(qn)` but omits Hall `J × B / (qn)`)
 - `:full` (default): full generalized Ohm's law `E = E_C + E_H + E_A` (missing only `-∇P_i/(qn)` unless `include_gradpi=true`).
 """
-function column_electric_fields(col::AnalyticalOutflowColumn, z::Real;
-                                b_geometry::Symbol = :oblique,
-                                e_mode::Symbol = :full,
-                                include_gradpi::Bool = false)
+function column_electric_fields(
+        col::AnalyticalOutflowColumn, z::Real;
+        b_geometry::Symbol = :oblique,
+        e_mode::Symbol = :full,
+        include_gradpi::Bool = false
+    )
     e_mode in (:conv_only, :conv_amb, :full) ||
         throw(ArgumentError("e_mode must be :conv_only, :conv_amb, or :full"))
     zf = clamp(Float64(z), col.z_min, col.z_max)
@@ -195,7 +209,7 @@ function column_electric_fields(col::AnalyticalOutflowColumn, z::Real;
     Ez_amb = -(TP.kB * col.T_e_K / col.q_ion) * dln_n
     E_amb = SA[0.0, 0.0, Ez_amb]
 
-    # Effective ion pressure gradient force -(1 / q n) dP_i/dz z_hat (collisional fluid closure)
+    # Effective ion pressure gradient force -(1 / q n) dP_i/dz z_hat (isotropic fluid scalar-pressure closure)
     Ez_gradpi = -(TP.kB * col.T_i_K / col.q_ion) * dln_n
 
     if b_geometry == :parallel
@@ -204,8 +218,8 @@ function column_electric_fields(col::AnalyticalOutflowColumn, z::Real;
         # In a parallel field where J x B = 0, full_fluid closure requires (m/q) U_z dU_z/dz - E_A
         E_gradpi_vec = include_gradpi ? SA[0.0, 0.0, f_inertial - Ez_amb] : SA[0.0, 0.0, 0.0]
         E_tot = (e_mode == :conv_only) ? E_conv :
-                (e_mode == :conv_amb)  ? (E_conv + E_amb) :
-                (E_conv + E_amb + E_gradpi_vec)
+            (e_mode == :conv_amb) ? (E_conv + E_amb) :
+            (E_conv + E_amb + E_gradpi_vec)
         return (;
             total = E_tot,
             conv = E_conv,
@@ -284,6 +298,7 @@ function _sample_vz_flux(rng::AbstractRNG, u0::Float64, v_th::Float64)
             return vz
         end
     end
+    return
 end
 
 function _sample_vz_volume_upward(rng::AbstractRNG, u0::Float64, v_th::Float64)
@@ -291,6 +306,7 @@ function _sample_vz_volume_upward(rng::AbstractRNG, u0::Float64, v_th::Float64)
         vz = u0 + v_th * randn(rng)
         vz > 0.0 && return vz
     end
+    return
 end
 
 """
@@ -298,10 +314,11 @@ end
                             N_p::Integer = 40_000, u0_m_s::Real = 600.0,
                             n0_m3::Real = 1.0e9)
 
-Demonstrate Mechanism 1 (Manuscript Eqs. 2–4 & 6): in a steady uniform flow of
-speed `u0_m_s`, weighting boundary-injected particles by the volume Maxwellian
-`w_i ∝ g(v)` gives a residence-time reconstructed PSD `f_TP(v_z) ∝ g(v_z)/v_z`,
-whereas flux weighting `w_i ∝ v_z g(v_z)` exactly recovers `f_MHD(v_z)`.
+Demonstrate how naive boundary volume weighting compares against exact surface-flux
+weighting in a steady uniform flow of speed `u0_m_s`: weighting boundary-injected
+particles by the volume Maxwellian `w_i ∝ g(v)` gives a residence-time reconstructed
+PSD `f_TP(v_z) ∝ g(v_z)/v_z`, whereas one-way surface-flux weighting `w_i ∝ v_z g(v_z)`
+(adopted in Manuscript Eqs. 2–4) cancels `τ_i ∝ 1/v_z` and recovers `f_MHD(v_z)`.
 Traces particles using `TestParticle.jl` (`Boris()`) and reconstructs the 1D VDF
 via detector residence time.
 """
@@ -315,33 +332,34 @@ function benchmark_weighting_vdf(
     u0 = Float64(u0_m_s)
     v_th = column_vth(col)
     z0 = 0.0
-    z_max = 50.0e3
-    dz_det = 10.0e3
+    z_max = 15.0e3
+    z_det_lo, z_det_hi = 4.0e3, 12.0e3
+    dz_det = z_det_hi - z_det_lo
 
-    vmin, vmax = 25.0, 3000.0
+    vmin, vmax = 2.0, 3000.0
     v_init = collect(range(vmin, vmax; length = N_p))
     dv_grid = step(range(vmin, vmax; length = N_p))
 
-    # Manuscript Eqs. 2-4: volume-Maxwellian weights w_i ∝ g(v), sum(w_i) = n0 * u0
+    # Naive volume-Maxwellian weights w_i ∝ g(v), sum(w_i) = n0 * u0
     g_vol = [exp(-0.5 * ((v - u0) / v_th)^2) for v in v_init]
     w_vol = (n0 * u0) .* (g_vol ./ sum(g_vol))
 
-    # Exact kinetic flux weights: w_i ∝ v * g(v), sum(w_i) = ∫_0^∞ v f_M(v) dv
+    # Exact kinetic surface-flux weights (Manuscript Eqs. 2-4): w_i ∝ v * g(v), sum(w_i) = ∫_0^∞ v f_M(v) dv
     f_exact_grid = [(n0 / (sqrt(2.0 * π) * v_th)) * g for g in g_vol]
     Q_flux = sum(v_init .* f_exact_grid .* dv_grid)
     g_flux = v_init .* g_vol
     w_flux = Q_flux .* (g_flux ./ sum(g_flux))
 
     # Trace in uniform parallel magnetic field B = B_0 z_hat, E = 0 so v_z is conserved
-    # and the detector residence time is exactly tau_i = dz_det / v_z,i, isolating
-    # the boundary weighting bias (Manuscript Eqs. 2-4 vs Eq. 6) without FLR gyromotion.
+    # and the detector residence time is exactly tau_i = dz_det / v_z,i, contrasting
+    # naive volume weighting against exact surface-flux weighting without FLR gyromotion.
     B0 = SA[0.0, 0.0, 15.0e-9]
     E0 = SA[0.0, 0.0, 0.0]
     sp = TP.Ion(32, 1)
     param = TP.prepare(; E = _ -> E0, B = _ -> B0, species = sp)
     u0_list = [SA[0.0, 0.0, z0, 0.0, 0.0, v] for v in v_init]
     prob_func = (prob, ctx) -> TP.remake(prob; u0 = u0_list[ctx.sim_id])
-    prob = TP.TraceProblem(u0_list[1], (0.0, 1200.0), param; prob_func = prob_func)
+    prob = TP.TraceProblem(u0_list[1], (0.0, 8000.0), param; prob_func = prob_func)
     isoutside = (u, p, t) -> (u[3] < z0 || u[3] >= z_max)
     sols = TP.solve(prob, Boris(), EnsembleThreads(); dt = 0.5, trajectories = N_p, isoutside = isoutside)
 
@@ -358,7 +376,7 @@ function benchmark_weighting_vdf(
         tau_det = 0.0
         for k in 1:(length(u_vec) - 1)
             z_mid = 0.5 * (u_vec[k][3] + u_vec[k + 1][3])
-            if 20.0e3 <= z_mid < 30.0e3
+            if z_det_lo <= z_mid < z_det_hi
                 tau_det += t_vec[k + 1] - t_vec[k]
             end
         end
@@ -391,7 +409,7 @@ end
                          include_gradpi::Bool = false,
                          flr_scale::Real = 1.0,
                          N_p::Integer = 12_000,
-                         N_bins::Integer = 130,
+                         N_bins::Integer = 154,
                          dt_step::Real = 0.2,
                          seed::Integer = 42,
                          record_vdf_600::Bool = false)
@@ -403,13 +421,13 @@ using `TestParticle.jl` (`Boris()`, `EnsembleThreads()`) and reconstruct:
 - Optional 2D `(v_y, v_z)` velocity distribution function at `z ∈ [580, 620]` km.
 
 ### Modes for Progressive Closure & `z_0` Sensitivity
-- `sample_mode = :volume_full`: Manuscript Eqs. 2–4 untruncated 3D drifting Maxwellian
-  at `z_0` with total injection rate `Q = n(z_0) * U_z(z_0)`. Particles with initial
+- `sample_mode = :volume_full`: Naive untruncated 3D drifting volume Maxwellian
+  at `z_0` with bulk-speed injection rate `Q = n(z_0) * U_z(z_0)`. Particles with initial
   downward motion or downward first-gyration that cross `z < z_inner` (200 km) are absorbed.
 - `sample_mode = :volume_upward`: Upward-only volume-weighted Maxwellian (`v_z > 0`)
   with `Q = n(z_0) * U_z(z_0)`.
-- `sample_mode = :flux`: Exact one-way upward kinetic flux weighting `w_i ∝ v_z g(v)`
-  with `Q = ∫_{v_z>0} v_z f_M(v) d³v`.
+- `sample_mode = :flux`: Exact Liouville-consistent one-way upward surface-flux weighting
+  `w_i ∝ v_z g(v)` with `Q = ∫_{v_z>0} v_z f_M(v) d³v` (matching Manuscript Eqs. 2–4).
 - `volumetric_source = true`: Inject particles at both `z_0` (with flux weighting) and
   continuously across `z ∈ [z_0, z_max]` proportional to `S_net(z) = P(z) - L(z)`.
 - `include_gradpi = true`: Include the effective fluid-closure ion pressure gradient
@@ -428,7 +446,7 @@ function trace_outflow_column(
         include_gradpi::Bool = false,
         flr_scale::Real = 1.0,
         N_p::Integer = 12_000,
-        N_bins::Integer = 130,
+        N_bins::Integer = 154,
         dt_step::Real = 0.2,
         seed::Integer = 42,
         record_vdf_600::Bool = false,
@@ -459,7 +477,7 @@ function trace_outflow_column(
     elseif sample_mode == :flux
         upward_maxwellian_flux(n0, u0, v_th)
     else
-        # Manuscript Eq. 3: Q = n * |U| * A (per unit area A = 1 m^2)
+        # Naive bulk-speed rate: Q = n * |U| * A (per unit area A = 1 m^2)
         n0 * u0
     end
 
@@ -470,11 +488,11 @@ function trace_outflow_column(
     z_src_grid = range(z0, z_max; length = 250)
     cdf_src = [
         (flux_base + (column_mhd_flux(col, zs) - column_mhd_flux(col, z0))) / total_injected_flux
-        for zs in z_src_grid
+            for zs in z_src_grid
     ]
 
     # Pre-tabulate B(z) and E(z) on a fine 1D grid for fast, allocation-free evaluation
-    N_tab = 651
+    N_tab = 771
     z_tab = range(z_min, z_max; length = N_tab)
     dz_tab = step(z_tab)
     B_tab = Vector{SVector{3, Float64}}(undef, N_tab)
@@ -515,8 +533,8 @@ function trace_outflow_column(
                 z_init = z0
                 u_init = u0
                 vz = (sample_mode == :flux) ? _sample_vz_flux(rng, u_init, v_th) :
-                     (sample_mode == :volume_upward) ? _sample_vz_volume_upward(rng, u_init, v_th) :
-                     (u_init + v_th * randn(rng))
+                    (sample_mode == :volume_upward) ? _sample_vz_volume_upward(rng, u_init, v_th) :
+                    (u_init + v_th * randn(rng))
             else
                 idx_s = clamp(searchsortedfirst(cdf_src, r_u), 2, length(z_src_grid))
                 z_init = z_src_grid[idx_s]
@@ -537,8 +555,11 @@ function trace_outflow_column(
             end
         end
         v_th_perp = (flr_scale < 0.5) ? 0.0 : v_th
+        ec_init = interp_vec(E_conv_tab, z_init)
+        b_init = interp_vec(B_tab, z_init)
+        uy_init = (ec_init[3] == 0.0 || b_init[1] == 0.0) ? 0.0 : -ec_init[3] / b_init[1]
         vx = v_th_perp * randn(rng)
-        vy = v_th_perp * randn(rng)
+        vy = uy_init + v_th_perp * randn(rng)
         u0_list[i] = SA[0.0, 0.0, z_init, vx, vy, vz]
     end
 
@@ -562,8 +583,9 @@ function trace_outflow_column(
     w_tot_accum = zeros(Float64, N_bins)
 
     Nv2 = 55
-    vy_edges = range(-3500.0, 2500.0; length = Nv2 + 1)
-    vz_edges = range(-500.0, 6500.0; length = Nv2 + 1)
+    u600_ref = max(column_mhd_velocity(col, 600.0e3), 4000.0)
+    vy_edges = range(-1.8 * u600_ref, 0.8 * u600_ref; length = Nv2 + 1)
+    vz_edges = range(-0.2 * u600_ref, 2.0 * u600_ref; length = Nv2 + 1)
     dvy = step(vy_edges)
     dvz = step(vz_edges)
     vdf_600 = zeros(Float64, Nv2, Nv2)
@@ -590,54 +612,62 @@ function trace_outflow_column(
             if z_new < z_inner || dt_s <= 0.0
                 break
             end
-            if z_new >= z_max
+            hit_top = z_new >= z_max
+            frac = if hit_top
+                (z_new > z_old && z_old < z_max) ? clamp((z_max - z_old) / (z_new - z_old), 0.0, 1.0) : 0.0
+            else
+                1.0
+            end
+            dt_seg = frac * dt_s
+            if dt_seg > 0.0
+                z_mid = hit_top ? 0.5 * (z_old + z_max) : 0.5 * (z_old + z_new)
+                v_mid = SA[
+                    u_a[4] + 0.5 * frac * (u_b[4] - u_a[4]),
+                    u_a[5] + 0.5 * frac * (u_b[5] - u_a[5]),
+                    u_a[6] + 0.5 * frac * (u_b[6] - u_a[6]),
+                ]
+
+                Ec = interp_vec(E_conv_tab, z_mid)
+                Eh = interp_vec(E_hall_tab, z_mid)
+                Ea = interp_vec(E_amb_tab, z_mid)
+                Et = interp_vec(E_tot_tab, z_mid)
+
+                dwc = q_eV * dot(Ec, v_mid) * dt_seg
+                dwh = q_eV * dot(Eh, v_mid) * dt_seg
+                dwa = q_eV * dot(Ea, v_mid) * dt_seg
+                dwt = q_eV * dot(Et, v_mid) * dt_seg
+
+                wc_mid = cum_wc + 0.5 * dwc
+                wh_mid = cum_wh + 0.5 * dwh
+                wa_mid = cum_wa + 0.5 * dwa
+                wt_mid = cum_wt + 0.5 * dwt
+
+                cum_wc += dwc
+                cum_wh += dwh
+                cum_wa += dwa
+                cum_wt += dwt
+
+                bin_idx = clamp(Int(floor((z_mid - z_min) / dz_bin)) + 1, 1, N_bins)
+                wt_tau = w_p * dt_seg
+                density_accum[bin_idx] += wt_tau / dz_bin
+                flux_z_accum[bin_idx] += wt_tau * v_mid[3] / dz_bin
+                tau_weight_accum[bin_idx] += wt_tau
+                w_conv_accum[bin_idx] += wt_tau * wc_mid
+                w_hall_accum[bin_idx] += wt_tau * wh_mid
+                w_amb_accum[bin_idx] += wt_tau * wa_mid
+                w_tot_accum[bin_idx] += wt_tau * wt_mid
+
+                if record_vdf_600 && (580.0e3 <= z_mid <= 620.0e3)
+                    iy = Int(floor((v_mid[2] - first(vy_edges)) / dvy)) + 1
+                    iz = Int(floor((v_mid[3] - first(vz_edges)) / dvz)) + 1
+                    if 1 <= iy <= Nv2 && 1 <= iz <= Nv2
+                        vdf_600[iy, iz] += wt_tau / (40.0e3 * dvy * dvz)
+                    end
+                end
+            end
+            if hit_top
                 n_escaped += 1
                 break
-            end
-
-            z_mid = 0.5 * (z_old + z_new)
-            v_mid = SA[
-                0.5 * (u_a[4] + u_b[4]),
-                0.5 * (u_a[5] + u_b[5]),
-                0.5 * (u_a[6] + u_b[6]),
-            ]
-
-            Ec = interp_vec(E_conv_tab, z_mid)
-            Eh = interp_vec(E_hall_tab, z_mid)
-            Ea = interp_vec(E_amb_tab, z_mid)
-            Et = interp_vec(E_tot_tab, z_mid)
-
-            dwc = q_eV * dot(Ec, v_mid) * dt_s
-            dwh = q_eV * dot(Eh, v_mid) * dt_s
-            dwa = q_eV * dot(Ea, v_mid) * dt_s
-            dwt = q_eV * dot(Et, v_mid) * dt_s
-
-            wc_mid = cum_wc + 0.5 * dwc
-            wh_mid = cum_wh + 0.5 * dwh
-            wa_mid = cum_wa + 0.5 * dwa
-            wt_mid = cum_wt + 0.5 * dwt
-
-            cum_wc += dwc
-            cum_wh += dwh
-            cum_wa += dwa
-            cum_wt += dwt
-
-            bin_idx = clamp(Int(floor((z_mid - z_min) / dz_bin)) + 1, 1, N_bins)
-            wt_tau = w_p * dt_s
-            density_accum[bin_idx] += wt_tau / dz_bin
-            flux_z_accum[bin_idx] += wt_tau * v_mid[3] / dz_bin
-            tau_weight_accum[bin_idx] += wt_tau
-            w_conv_accum[bin_idx] += wt_tau * wc_mid
-            w_hall_accum[bin_idx] += wt_tau * wh_mid
-            w_amb_accum[bin_idx] += wt_tau * wa_mid
-            w_tot_accum[bin_idx] += wt_tau * wt_mid
-
-            if record_vdf_600 && (580.0e3 <= z_mid <= 620.0e3)
-                iy = Int(floor((v_mid[2] - first(vy_edges)) / dvy)) + 1
-                iz = Int(floor((v_mid[3] - first(vz_edges)) / dvz)) + 1
-                if 1 <= iy <= Nv2 && 1 <= iz <= Nv2
-                    vdf_600[iy, iz] += wt_tau / (40.0e3 * dvy * dvz)
-                end
             end
         end
     end
@@ -645,48 +675,54 @@ function trace_outflow_column(
     u_rec = [density_accum[k] > 1.0e5 ? flux_z_accum[k] / density_accum[k] : NaN for k in 1:N_bins]
     w_conv_eV = [tau_weight_accum[k] > 0 ? w_conv_accum[k] / tau_weight_accum[k] : NaN for k in 1:N_bins]
     w_hall_eV = [tau_weight_accum[k] > 0 ? w_hall_accum[k] / tau_weight_accum[k] : NaN for k in 1:N_bins]
-    w_amb_eV  = [tau_weight_accum[k] > 0 ? w_amb_accum[k] / tau_weight_accum[k] : NaN for k in 1:N_bins]
-    w_tot_eV  = [tau_weight_accum[k] > 0 ? w_tot_accum[k] / tau_weight_accum[k] : NaN for k in 1:N_bins]
+    w_amb_eV = [tau_weight_accum[k] > 0 ? w_amb_accum[k] / tau_weight_accum[k] : NaN for k in 1:N_bins]
+    w_tot_eV = [tau_weight_accum[k] > 0 ? w_tot_accum[k] / tau_weight_accum[k] : NaN for k in 1:N_bins]
 
-    idx_600 = findfirst(z -> z >= 600.0e3, z_centers)
-    tot_600 = w_tot_eV[idx_600]
-    shares_600 = if isfinite(tot_600) && abs(tot_600) > 1e-6
-            idx_start = findfirst(>=(z0), z_centers)
-            wc_rel = idx_start !== nothing && isfinite(w_conv_eV[idx_start]) ? w_conv_eV .- w_conv_eV[idx_start] : w_conv_eV
-            wh_rel = idx_start !== nothing && isfinite(w_hall_eV[idx_start]) ? w_hall_eV .- w_hall_eV[idx_start] : w_hall_eV
-            wa_rel = idx_start !== nothing && isfinite(w_amb_eV[idx_start])  ? w_amb_eV  .- w_amb_eV[idx_start]  : w_amb_eV
-            wt_rel = idx_start !== nothing && isfinite(w_tot_eV[idx_start])  ? w_tot_eV  .- w_tot_eV[idx_start]  : w_tot_eV
-
-            idx_400 = findfirst(>=(400.0e3), z_centers)
-            idx_750 = findfirst(>=(750.0e3), z_centers)
-            dw_tot_400_750 = w_tot_eV[idx_750] - w_tot_eV[idx_400]
-            shares_400_750 = if isfinite(dw_tot_400_750) && abs(dw_tot_400_750) > 1e-6
-                (;
-                    conv_pct = 100.0 * (w_conv_eV[idx_750] - w_conv_eV[idx_400]) / dw_tot_400_750,
-                    hall_pct = 100.0 * (w_hall_eV[idx_750] - w_hall_eV[idx_400]) / dw_tot_400_750,
-                    amb_pct  = 100.0 * (w_amb_eV[idx_750]  - w_amb_eV[idx_400])  / dw_tot_400_750,
-                    delta_total_eV = dw_tot_400_750,
-                )
-            else
-                (; conv_pct = NaN, hall_pct = NaN, amb_pct = NaN, delta_total_eV = NaN)
-            end
-
-            (;
-                conv_pct = 100.0 * w_conv_eV[idx_600] / tot_600,
-                hall_pct = 100.0 * w_hall_eV[idx_600] / tot_600,
-                amb_pct  = 100.0 * w_amb_eV[idx_600] / tot_600,
-                total_eV = tot_600,
-                upper_conv_pct = shares_400_750.conv_pct,
-                upper_hall_pct = shares_400_750.hall_pct,
-                upper_amb_pct  = shares_400_750.amb_pct,
-                upper_delta_eV = shares_400_750.delta_total_eV,
+    function _shares_at(idx_eval::Union{Int, Nothing})
+        if idx_eval === nothing
+            return (;
+                conv_pct = NaN, hall_pct = NaN, amb_pct = NaN, total_eV = NaN,
+                upper_conv_pct = NaN, upper_hall_pct = NaN, upper_amb_pct = NaN, upper_delta_eV = NaN,
             )
-    else
-        (;
-            conv_pct = NaN, hall_pct = NaN, amb_pct = NaN, total_eV = NaN,
-            upper_conv_pct = NaN, upper_hall_pct = NaN, upper_amb_pct = NaN, upper_delta_eV = NaN,
+        end
+        tot_eval = w_tot_eV[idx_eval]
+        if !(isfinite(tot_eval) && abs(tot_eval) > 1.0e-6)
+            return (;
+                conv_pct = NaN, hall_pct = NaN, amb_pct = NaN, total_eV = NaN,
+                upper_conv_pct = NaN, upper_hall_pct = NaN, upper_amb_pct = NaN, upper_delta_eV = NaN,
+            )
+        end
+
+        idx_400 = findfirst(>=(400.0e3), z_centers)
+        idx_750 = findfirst(>=(750.0e3), z_centers)
+        dw_tot_400_750 = (idx_400 !== nothing && idx_750 !== nothing) ? (w_tot_eV[idx_750] - w_tot_eV[idx_400]) : NaN
+        shares_400_750 = if isfinite(dw_tot_400_750) && abs(dw_tot_400_750) > 1.0e-6
+            (;
+                conv_pct = 100.0 * (w_conv_eV[idx_750] - w_conv_eV[idx_400]) / dw_tot_400_750,
+                hall_pct = 100.0 * (w_hall_eV[idx_750] - w_hall_eV[idx_400]) / dw_tot_400_750,
+                amb_pct = 100.0 * (w_amb_eV[idx_750] - w_amb_eV[idx_400]) / dw_tot_400_750,
+                delta_total_eV = dw_tot_400_750,
+            )
+        else
+            (; conv_pct = NaN, hall_pct = NaN, amb_pct = NaN, delta_total_eV = NaN)
+        end
+
+        return (;
+            conv_pct = 100.0 * w_conv_eV[idx_eval] / tot_eval,
+            hall_pct = 100.0 * w_hall_eV[idx_eval] / tot_eval,
+            amb_pct = 100.0 * w_amb_eV[idx_eval] / tot_eval,
+            total_eV = tot_eval,
+            upper_conv_pct = shares_400_750.conv_pct,
+            upper_hall_pct = shares_400_750.hall_pct,
+            upper_amb_pct = shares_400_750.amb_pct,
+            upper_delta_eV = shares_400_750.delta_total_eV,
         )
     end
+
+    idx_600 = findfirst(z -> z >= 600.0e3, z_centers)
+    idx_800 = findfirst(z -> z >= 800.0e3, z_centers)
+    shares_600 = _shares_at(idx_600)
+    shares_800 = _shares_at(idx_800)
 
     return (;
         z_km = z_centers ./ 1.0e3,
@@ -698,6 +734,7 @@ function trace_outflow_column(
         w_amb_eV,
         w_tot_eV,
         shares_600,
+        shares_800,
         escape_fraction = n_escaped / N_p,
         total_injected_flux,
         vdf_600,
@@ -706,3 +743,125 @@ function trace_outflow_column(
     )
 end
 
+"""
+    benchmark_parallel_gradpi(col::AnalyticalOutflowColumn = AnalyticalOutflowColumn();
+                              N_p::Integer = 4_000,
+                              N_bins::Integer = 120,
+                              dt_step::Real = 0.5,
+                              seed::Integer = 202)
+
+Demonstrate Mechanism 1 in a steady 1D outflow column along a parallel
+magnetic field `B = (0, 0, 15 nT)` over `z ∈ [200, 800] km` with exponential
+density scale height `H_n = 140 km` and base outflow speed `U_0 = 2.0 km/s`.
+
+Collisionless ions obey pure Lorentz motion `m dV_i/dt = q(E + V_i × B)` and
+never experience `-∇P_i` as a single-particle force; in kinetic theory (and hybrid
+PIC models), `-∇·P_i` arises from the velocity moment of spatial free-streaming
+(`v·∇f_i`), which narrows parallel velocity dispersion (`T_∥` decreases) during
+scatter-free acceleration, whereas MHD prescribes an isotropic scalar-pressure
+closure `P_i = n k_B T_i` (approximating gyrotropy and wave-particle pitch-angle
+isotropization with zero heat flux).
+
+Compares the scalar-pressure MHD fluid profile
+`U_{z,MHD}(z) = sqrt(U_0^2 + 2 k_B (T_e + T_i) (z - z_0) / (m H_n))`
+against collisionless test-particle ensembles traced with `TestParticle.jl`
+on a deterministic flux-weighted initial velocity grid:
+1. `u_free_km_s`: `E_∥ = 0` (free-streaming at constant speed)
+2. `u_amb_km_s`: `E_z = -∇P_e / (q n)` (ambipolar electric field only, scatter-free kinetics)
+3. `u_full_km_s`: analytical reference `E_z = -(∇P_e + ∇P_i) / (q n)` in the
+   zero-dispersion fluid scalar-pressure closure limit (retained for validation)
+"""
+function benchmark_parallel_gradpi(
+        col::AnalyticalOutflowColumn = AnalyticalOutflowColumn();
+        N_p::Integer = 4_000,
+        N_bins::Integer = 120,
+        dt_step::Real = 0.5,
+        seed::Integer = 202,
+    )
+    _ = seed
+    z0 = 200.0e3
+    z_max = 800.0e3
+    H_n = 140.0e3
+    U0 = 2000.0
+    n0 = 8.0e8
+    v_th = column_vth(col)
+
+    z_edges = range(z0, z_max; length = N_bins + 1)
+    dz_bin = step(z_edges)
+    z_centers = [0.5 * (z_edges[k] + z_edges[k + 1]) for k in 1:N_bins]
+
+    u_mhd_km_s = [
+        sqrt(U0^2 + 2.0 * TP.kB * (col.T_e_K + col.T_i_K) * (zc - z0) / (col.m_ion * H_n)) / 1.0e3
+            for zc in z_centers
+    ]
+
+    Ez_amb = (TP.kB * col.T_e_K / col.q_ion) / H_n
+    Ez_gradpi = (TP.kB * col.T_i_K / col.q_ion) / H_n
+    B0 = SA[0.0, 0.0, 15.0e-9]
+    sp = TP.SpeciesDict[col.species]
+
+    v_init = collect(range(50.0, U0 + 6.0 * v_th; length = N_p))
+    g_vol = [exp(-0.5 * ((v - U0) / v_th)^2) for v in v_init]
+    g_flux = v_init .* g_vol
+    flux_base = upward_maxwellian_flux(n0, U0, v_th)
+    w_flux = flux_base .* (g_flux ./ sum(g_flux))
+    u0_list = [SA[0.0, 0.0, z0, 0.0, 0.0, v] for v in v_init]
+
+    isoutside = (u, p, t) -> (u[3] < z0 || u[3] >= z_max)
+    tspan = (0.0, 25_000.0)
+
+    function run_ez(Ez_val::Float64; cold_fluid::Bool = false)
+        E_const = SA[0.0, 0.0, Ez_val]
+        param = TP.prepare(; E = _ -> E_const, B = _ -> B0, q = col.q_ion, m = col.m_ion, species = sp)
+        n_traj = cold_fluid ? 10 : Int(N_p)
+        u0_cold = SA[0.0, 0.0, z0, 0.0, 0.0, U0]
+        u_inits = cold_fluid ? fill(u0_cold, n_traj) : u0_list
+        weights = cold_fluid ? fill((n0 * U0) / n_traj, n_traj) : w_flux
+        prob_func = (prob, ctx) -> TP.remake(prob; u0 = u_inits[ctx.sim_id])
+        prob = TP.TraceProblem(u_inits[1], tspan, param; prob_func = prob_func)
+        sols = TP.solve(prob, Boris(), EnsembleThreads(); dt = Float64(dt_step), trajectories = n_traj, isoutside = isoutside)
+
+        density_accum = zeros(Float64, N_bins)
+        flux_z_accum = zeros(Float64, N_bins)
+        @inline function accum_seg!(w_i::Float64, z_mid::Float64, vz_mid::Float64, dt_seg::Float64)
+            bin_idx = clamp(Int(floor((z_mid - z0) / dz_bin)) + 1, 1, N_bins)
+            wt_tau = w_i * dt_seg
+            density_accum[bin_idx] += wt_tau / dz_bin
+            return flux_z_accum[bin_idx] += wt_tau * vz_mid / dz_bin
+        end
+
+        for (i, sol) in enumerate(sols.u)
+            w_i = weights[i]
+            u_vec = sol.u
+            t_vec = sol.t
+            for k in 1:(length(u_vec) - 1)
+                z_old = u_vec[k][3]
+                z_new = u_vec[k + 1][3]
+                dt_s = t_vec[k + 1] - t_vec[k]
+                (z_new < z0 || dt_s <= 0.0) && break
+                if z_new >= z_max
+                    if z_new > z_old && z_old < z_max
+                        frac = clamp((z_max - z_old) / (z_new - z_old), 0.0, 1.0)
+                        dt_seg = frac * dt_s
+                        if dt_seg > 0.0
+                            z_mid = 0.5 * (z_old + z_max)
+                            vz_mid = u_vec[k][6] + 0.5 * frac * (u_vec[k + 1][6] - u_vec[k][6])
+                            accum_seg!(w_i, z_mid, vz_mid, dt_seg)
+                        end
+                    end
+                    break
+                end
+                accum_seg!(w_i, 0.5 * (z_old + z_new), 0.5 * (u_vec[k][6] + u_vec[k + 1][6]), dt_s)
+            end
+        end
+        return [density_accum[k] > 0.0 ? (flux_z_accum[k] / density_accum[k]) / 1.0e3 : NaN for k in 1:N_bins]
+    end
+
+    return (;
+        z_km = z_centers ./ 1.0e3,
+        u_mhd_km_s,
+        u_free_km_s = run_ez(0.0),
+        u_amb_km_s = run_ez(Ez_amb),
+        u_full_km_s = run_ez(Ez_amb + Ez_gradpi; cold_fluid = true),
+    )
+end
