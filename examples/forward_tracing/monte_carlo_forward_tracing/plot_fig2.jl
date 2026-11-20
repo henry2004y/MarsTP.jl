@@ -20,6 +20,10 @@ using Random
 using Printf
 using PyPlot
 
+if !isdefined(@__MODULE__, :paper_style)
+    include(joinpath(@__DIR__, "plot_style.jl"))
+end
+
 function _read_source_cells_csv(csv_path::AbstractString)
     lines = readlines(csv_path)
     length(lines) > 1 || error("Empty source_cells.csv: $csv_path")
@@ -198,18 +202,7 @@ function plot_fig2(
         w_i = q_total .* (g_raw ./ sum(g_raw))
     end
 
-    PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 19.5
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 19
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 19
-    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
-    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
+    st = paper_style(14.6)
 
     fig = plt.figure(figsize = (14.6, 11.8), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.05, hspace = 0.04)
@@ -223,65 +216,62 @@ function plot_fig2(
     ax_d = fig.add_subplot(gs_right[1, 1])
     ax_e = fig.add_subplot(gs_right[2, 1])
 
+    cmap_c = paper_cmap_continuous()
+
     # (a) Density
     im_a = ax_a.pcolormesh(
         lons, lats, n_map;
-        cmap = "turbo", norm = matplotlib.colors.LogNorm(vmin = 1.0e6, vmax = 1.0e9),
+        cmap = cmap_c, norm = matplotlib.colors.LogNorm(vmin = 1.0e6, vmax = 1.0e9),
         shading = "auto", rasterized = true,
     )
-    ax_a.scatter([0.0], [0.0]; marker = "*", s = 260, facecolor = "white", edgecolor = "black", lw = 1.2, zorder = 6, clip_on = false)
+    ax_a.scatter([0.0], [0.0]; marker = "*", s = 240, facecolor = "white", edgecolor = "black", lw = 1.2, zorder = 6, clip_on = false)
     ax_a.text(
         10.0, 22.0, "Subsolar";
-        fontsize = 18.5, va = "center", ha = "left",
+        fontsize = st.annot, va = "center", ha = "left",
         bbox = Dict("boxstyle" => "square,pad=0.2", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.9),
         zorder = 6,
     )
-    ax_a.set_title("(a) O\$_2^+\$ density at $(Int(round(altitude_km))) km"; fontsize = 21.5, pad = 8)
+    ax_a.set_title("(a) O\$_2^+\$ density at $(Int(round(altitude_km))) km"; fontsize = st.title, pad = 8)
     cax_a = ax_a.inset_axes([1.03, 0.0, 0.038, 1.0])
     cb_a = fig.colorbar(im_a; cax = cax_a)
-    cb_a.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
-    cb_a.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_a.set_label("Number density (m\$^{-3}\$)"; fontsize = 19.5)
+    style_colorbar!(cb_a, st; label = "Number density (m\$^{-3}\$)")
 
     # (b) Speed
     im_b = ax_b.pcolormesh(
         lons, lats, u_map;
-        cmap = "turbo", vmin = 0.0, vmax = 30.0,
+        cmap = cmap_c, vmin = 0.0, vmax = 30.0,
         shading = "auto", rasterized = true,
     )
-    ax_b.set_title("(b) O\$_2^+\$ speed at $(Int(round(altitude_km))) km"; fontsize = 21.5, pad = 8)
+    ax_b.set_title("(b) O\$_2^+\$ speed at $(Int(round(altitude_km))) km"; fontsize = st.title, pad = 8)
     cax_b = ax_b.inset_axes([1.03, 0.0, 0.038, 1.0])
     cb_b = fig.colorbar(im_b; cax = cax_b)
-    cb_b.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
-    cb_b.set_label("Speed (km s\$^{-1}\$)"; fontsize = 19.5)
+    style_colorbar!(cb_b, st; label = "Speed (km s\$^{-1}\$)")
 
     # (c) Temperature
     im_c = ax_c.pcolormesh(
         lons, lats, t_map;
-        cmap = "turbo", norm = matplotlib.colors.LogNorm(vmin = 1.0e2, vmax = 1.0e7),
+        cmap = cmap_c, norm = matplotlib.colors.LogNorm(vmin = 1.0e2, vmax = 1.0e7),
         shading = "auto", rasterized = true,
     )
-    ax_c.set_title("(c) O\$_2^+\$ temperature at $(Int(round(altitude_km))) km"; fontsize = 21.5, pad = 8)
-    ax_c.set_xlabel("Longitude (°)"; fontsize = 21)
+    ax_c.set_title("(c) O\$_2^+\$ temperature at $(Int(round(altitude_km))) km"; fontsize = st.title, pad = 8)
+    ax_c.set_xlabel("Longitude (°)"; fontsize = st.label)
     cax_c = ax_c.inset_axes([1.03, 0.0, 0.038, 1.0])
     cb_c = fig.colorbar(im_c; cax = cax_c)
-    cb_c.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
-    cb_c.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_c.set_label("Temperature (K)"; fontsize = 19.5)
+    style_colorbar!(cb_c, st; label = "Temperature (K)")
 
     for ax in (ax_a, ax_b, ax_c)
         ax.set_xlim(0.0, 360.0)
         ax.set_ylim(-90.0, 90.0)
         ax.set_xticks(0:60:360)
         ax.set_yticks(-90:30:90)
-        ax.tick_params(axis = "both", which = "major", labelsize = 19, length = 7.5, width = 1.4)
-        ax.set_ylabel("Latitude (°)"; fontsize = 21)
+        ax.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+        ax.set_ylabel("Latitude (°)"; fontsize = st.label)
     end
 
     # (d) Local O2+ Maxwellian (logarithmic color scale)
     vmax_d = maximum(fxz_exact)
     vmin_d = vmax_d * 1.0e-4
-    cmap_d = matplotlib.cm.get_cmap("turbo").copy()
+    cmap_d = paper_cmap_continuous()
     ax_d.set_facecolor(cmap_d(0.0))
     fxz_plot = max.(fxz_exact, vmin_d)
     norm_d = matplotlib.colors.LogNorm(vmin = vmin_d, vmax = vmax_d)
@@ -298,10 +288,10 @@ function plot_fig2(
         ax_d.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
         ax_d.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
     end
-    ax_d.tick_params(axis = "both", which = "major", labelsize = 19, length = 7.5, width = 1.4)
-    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 21)
-    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 21)
-    ax_d.set_title("(d) Local O\$_2^+\$ Maxwellian\nLongitude = $(Int(round(sample_lon_deg)))°, Latitude = $(Int(round(sample_lat_deg)))°"; fontsize = 21.5, pad = 9)
+    ax_d.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_d.set_title("(d) Local O\$_2^+\$ Maxwellian\nLongitude = $(Int(round(sample_lon_deg)))°, Latitude = $(Int(round(sample_lat_deg)))°"; fontsize = st.title, pad = 9)
     n_exp = floor(Int, log10(p0.n))
     n_mant = p0.n / 10.0^n_exp
     t_exp = floor(Int, log10(p0.Ti))
@@ -310,12 +300,10 @@ function plot_fig2(
         "\$n = %.2f \\times 10^{%d}\$ m\$^{-3}\$\n\$V = (%.2f, %.2f, %.2f)\$ km/s\n\$T = %.2f \\times 10^{%d}\$ K",
         n_mant, n_exp, ux0 / 1.0e3, uy0 / 1.0e3, uz0 / 1.0e3, t_mant, t_exp,
     )
-    ax_d.text(0.04, 0.05, info_txt; transform = ax_d.transAxes, color = "white", fontsize = 17, va = "bottom", ha = "left")
+    ax_d.text(0.04, 0.05, info_txt; transform = ax_d.transAxes, color = "white", fontsize = st.annot, va = "bottom", ha = "left")
     cax_d = ax_d.inset_axes([1.035, 0.0, 0.045, 1.0])
     cb_d = fig.colorbar(im_d; cax = cax_d)
-    cb_d.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
-    cb_d.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_d.set_label("\$f_{xz}\$ (s\$^2\$ m\$^{-5}\$)"; fontsize = 19.5)
+    style_colorbar!(cb_d, st; label = "\$f_{xz}\$ (s\$^2\$ m\$^{-5}\$)")
 
     # (e) Particle-rate weights (logarithmic color scale)
     pos_w = findall(>(0.0), w_i)
@@ -325,7 +313,7 @@ function plot_fig2(
     norm_e = matplotlib.colors.LogNorm(vmin = vmin_e, vmax = vmax_e)
     sc_e = ax_e.scatter(
         vx_s[ord] ./ 1.0e3, vz_s[ord] ./ 1.0e3;
-        c = w_i[ord], cmap = "turbo", norm = norm_e,
+        c = w_i[ord], cmap = cmap_c, norm = norm_e,
         s = 9, marker = "s", linewidths = 0, rasterized = true,
     )
     ax_e.set_xlim(extrema(vx_grid) ./ 1.0e3)
@@ -338,15 +326,13 @@ function plot_fig2(
         ax_e.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
         ax_e.yaxis.set_major_locator(matplotlib.ticker.MaxNLocator(nbins = 5))
     end
-    ax_e.tick_params(axis = "both", which = "major", labelsize = 19, length = 7.5, width = 1.4)
-    ax_e.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 21)
-    ax_e.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 21)
-    ax_e.set_title("(e) Particle-rate weights \$w_i\$"; fontsize = 21.5, pad = 9)
+    ax_e.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_e.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_e.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_e.set_title("(e) Particle-rate weights \$w_i\$"; fontsize = st.title, pad = 9)
     cax_e = ax_e.inset_axes([1.035, 0.0, 0.045, 1.0])
     cb_e = fig.colorbar(sc_e; cax = cax_e)
-    cb_e.ax.tick_params(which = "major", labelsize = 18, length = 6.0, width = 1.3)
-    cb_e.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_e.set_label("\$w_i\$ (s\$^{-1}\$)"; fontsize = 19.5)
+    style_colorbar!(cb_e, st; label = "\$w_i\$ (s\$^{-1}\$)")
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")

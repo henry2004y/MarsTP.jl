@@ -15,6 +15,10 @@ using Printf
 using DelimitedFiles
 using PyPlot
 
+if !isdefined(@__MODULE__, :paper_style)
+    include(joinpath(@__DIR__, "monte_carlo_forward_tracing", "plot_style.jl"))
+end
+
 function run_unified_tp_mhd_benchmark(;
         N_p_col::Int = 15_000,
         output_png::AbstractString = get(
@@ -138,22 +142,21 @@ function run_unified_tp_mhd_benchmark(;
     # ==========================================================================
     # Render 3-Panel Publication Figure (2 Top + 1 Centered Bottom)
     # ==========================================================================
-    fig = PyPlot.plt.figure(figsize = (14.4, 9.6))
-    gs_outer = fig.add_gridspec(
-        2, 1;
-        height_ratios = [1.05, 0.95], hspace = 0.36,
-        left = 0.065, right = 0.935, top = 0.94, bottom = 0.08,
-    )
-    gs_top = gs_outer[1].subgridspec(1, 2; wspace = 0.28)
+    st = paper_style(14.4)
+
+    fig = PyPlot.plt.figure(figsize = (14.4, 10.4), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.05, h_pad = 0.06, wspace = 0.06, hspace = 0.08)
+    gs_outer = fig.add_gridspec(2, 1; height_ratios = [1.05, 0.95])
+    gs_top = gs_outer[1].subgridspec(1, 2; wspace = 0.22)
     gs_bot = gs_outer[2].subgridspec(1, 3; width_ratios = [0.08, 0.84, 0.08], wspace = 0.0)
 
     # --------------------------------------------------------------------------
     # Panel (a): Mechanism 1 — Fluid Pressure Closure vs. Kinetic Streaming
     # --------------------------------------------------------------------------
     ax_a = fig.add_subplot(gs_top[1, 1])
-    ax_a.plot(p2.z_km, p2.u_mhd_km_s; color = "black", lw = 2.8, label = raw"MHD Fluid Closure $U_{h,\mathrm{MHD}}(h)$")
-    ax_a.plot(p2.z_km, p2.u_amb_km_s; color = "#ff7f0e", lw = 2.6, label = raw"Kinetic TP with $\vec{E}_A = -\nabla P_e/(qn)$")
-    ax_a.plot(p2.z_km, p2.u_free_km_s; color = "#1f77b4", lw = 2.4, ls = "--", label = raw"Kinetic TP Free-Streaming ($E_\parallel = 0$)")
+    ax_a.plot(p2.z_km, p2.u_mhd_km_s; color = COL_TOTAL, lw = 2.8, label = raw"MHD Fluid Closure $U_{h,\mathrm{MHD}}(h)$")
+    ax_a.plot(p2.z_km, p2.u_amb_km_s; color = COL_AMB, lw = 2.6, label = raw"Kinetic TP with $\vec{E}_A = -\nabla P_e/(qn)$")
+    ax_a.plot(p2.z_km, p2.u_free_km_s; color = SET2_BLUE, lw = 2.4, ls = "--", label = raw"Kinetic TP Free-Streaming ($E_\parallel = 0$)")
     idx_700 = findfirst(>=(700.0), p2.z_km)
     u_mhd_700 = p2.u_mhd_km_s[idx_700]
     u_amb_700 = p2.u_amb_km_s[idx_700]
@@ -161,24 +164,24 @@ function run_unified_tp_mhd_benchmark(;
         "";
         xy = (700.0, u_mhd_700),
         xytext = (700.0, u_amb_700),
-        arrowprops = Dict("arrowstyle" => "<->", "color" => "#333333", "lw" => 1.5, "shrinkA" => 1, "shrinkB" => 1),
+        arrowprops = Dict("arrowstyle" => "<->", "color" => REF_GRAY, "lw" => 1.5, "shrinkA" => 1, "shrinkB" => 1),
     )
     ax_a.annotate(
         "Fluid scalar\n\$P_i\$ closure";
         xy = (696.0, 0.5 * (u_mhd_700 + u_amb_700)),
-        xytext = (605.0, 2.42),
-        ha = "center", va = "center", fontsize = 11.8, color = "#222222",
+        xytext = (585.0, 2.38),
+        ha = "center", va = "center", fontsize = st.annot_sm, color = "#222222",
         bbox = Dict("boxstyle" => "round,pad=0.3", "facecolor" => "#f8f9fa", "edgecolor" => "0.72", "alpha" => 0.94),
-        arrowprops = Dict("arrowstyle" => "->", "color" => "#555555", "lw" => 1.0, "connectionstyle" => "arc3,rad=0.15"),
+        arrowprops = Dict("arrowstyle" => "->", "color" => REF_GRAY, "lw" => 1.1, "connectionstyle" => "arc3,rad=0.15"),
     )
     ax_a.set_xlim(200.0, 800.0)
-    ax_a.set_ylim(1.75, 3.88)
-    ax_a.set_xlabel(raw"Altitude $h$ (km)"; fontsize = 13.5)
-    ax_a.set_ylabel(raw"Bulk Outflow Speed $U_h$ (km/s)"; fontsize = 13.5)
-    ax_a.set_title("(a) Fluid Pressure Closure vs. Kinetic Streaming"; fontsize = 14.0, fontweight = "bold", pad = 8.0)
-    ax_a.tick_params(axis = "both", which = "major", labelsize = 12.0)
+    ax_a.set_ylim(1.75, 4.22)
+    ax_a.set_xlabel(raw"Altitude $h$ (km)"; fontsize = st.label)
+    ax_a.set_ylabel(raw"Bulk Outflow Speed $U_h$ (km/s)"; fontsize = st.label)
+    ax_a.set_title("(a) Fluid Pressure Closure vs. Kinetic Streaming"; fontsize = st.title_sm, fontweight = "bold", pad = 8.0)
+    ax_a.tick_params(axis = "both", which = "major", labelsize = st.tick)
     ax_a.grid(true; alpha = 0.25)
-    ax_a.legend(; loc = "upper left", fontsize = 11.5, framealpha = 0.94)
+    ax_a.legend(; loc = "upper left", fontsize = st.legend, framealpha = 0.94)
 
     # --------------------------------------------------------------------------
     # Panel (b): Mechanism 2 — Ionospheric O2+ Source & h0 Sensitivity
@@ -190,11 +193,11 @@ function run_unified_tp_mhd_benchmark(;
     s_net_prof = [column_source_rate(col, z) / 1.0e6 for z in z_fine_m]
 
     ax_b_rhs = ax_b.twinx()
-    ax_b_rhs.fill_between(z_fine_km, 0.0, s_net_prof; color = "#e09f5a", alpha = 0.2)
-    ax_b_rhs.plot(z_fine_km, s_net_prof; color = "#b07030", lw = 1.6, ls = "--", alpha = 0.8)
-    ax_b_rhs.set_ylim(0.0, 5.0)
-    ax_b_rhs.set_ylabel(raw"Net Source $S_{\mathrm{net}}$ ($10^6\ \mathrm{m^{-3}\,s^{-1}}$)"; fontsize = 13.5, color = "#b07030")
-    ax_b_rhs.tick_params(axis = "y", colors = "#b07030", labelsize = 12.0)
+    ax_b_rhs.fill_between(z_fine_km, 0.0, s_net_prof; color = SET2_TAN, alpha = 0.32)
+    ax_b_rhs.plot(z_fine_km, s_net_prof; color = REF_GRAY, lw = 1.6, ls = "--", alpha = 0.85)
+    ax_b_rhs.set_ylim(0.0, 5.2)
+    ax_b_rhs.set_ylabel(raw"Net Source $S_{\mathrm{net}}$ ($10^6\ \mathrm{m^{-3}\,s^{-1}}$)"; fontsize = st.label, color = "0.35")
+    ax_b_rhs.tick_params(axis = "y", colors = "0.35", labelsize = st.tick)
 
     ax_b.set_zorder(ax_b_rhs.get_zorder() + 1)
     ax_b.patch.set_visible(false)
@@ -208,41 +211,41 @@ function run_unified_tp_mhd_benchmark(;
     g600 = @sprintf("%.2f", ob_600.flux_m2_s[idx_800] / 1.0e11)
 
     for z0_mark in (200.0, 400.0, 600.0)
-        ax_b.axvline(z0_mark; color = "0.5", ls = ":", lw = 1.0)
+        ax_b.axvline(z0_mark; color = REF_GRAY, ls = ":", lw = 1.0)
     end
-    ax_b.plot(z_fine_km, n_mhd_prof; color = "black", lw = 3.0, ls = "-", zorder = 3, label = "MHD \$n_{\\mathrm{MHD}}(h)\$ (\$\\Gamma_{800}=$(gmhd)\$)")
+    ax_b.plot(z_fine_km, n_mhd_prof; color = COL_TOTAL, lw = 3.0, ls = "-", zorder = 3, label = "MHD \$n_{\\mathrm{MHD}}(h)\$ (\$\\Gamma_{800}=$(gmhd)\$)")
     for (mask_j, res_j, clr_j, ls_j, zo_j, lbl_j) in (
-            (m200, ob_200, "#1f77b4", "-", 4, "TP \$h_0=200\$ km (\$\\Gamma_{800}=$(g200)\$)"),
-            (m400, ob_400, "#2ca02c", "--", 5, "TP \$h_0=400\$ km (\$\\Gamma_{800}=$(g400)\$)"),
-            (m600, ob_600, "#d62728", "-.", 6, "TP \$h_0=600\$ km (\$\\Gamma_{800}=$(g600)\$)"),
+            (m200, ob_200, SET2_BLUE, "-", 4, "TP \$h_0=200\$ km (\$\\Gamma_{800}=$(g200)\$)"),
+            (m400, ob_400, SET2_TEAL, "--", 5, "TP \$h_0=400\$ km (\$\\Gamma_{800}=$(g400)\$)"),
+            (m600, ob_600, SET2_ORANGE, "-.", 6, "TP \$h_0=600\$ km (\$\\Gamma_{800}=$(g600)\$)"),
         )
         zk_sub = z_km[mask_j]
         nk_sub = res_j.n_m3[mask_j] ./ 1.0e8
-        ax_b.plot(zk_sub, nk_sub; color = clr_j, lw = 2.55, ls = ls_j, zorder = zo_j, label = lbl_j)
-        ax_b.plot([zk_sub[1]], [nk_sub[1]]; marker = "o", ls = "none", color = clr_j, markersize = 7.0, markeredgecolor = "white", markeredgewidth = 0.9, zorder = 7)
+        ax_b.plot(zk_sub, nk_sub; color = clr_j, lw = 2.6, ls = ls_j, zorder = zo_j, label = lbl_j)
+        ax_b.plot([zk_sub[1]], [nk_sub[1]]; marker = "o", ls = "none", color = clr_j, markersize = 7.5, markeredgecolor = "black", markeredgewidth = 0.7, zorder = 7)
     end
     ax_b_rhs.annotate(
         "Ionospheric\n\$S_{\\mathrm{net}} = P - L\$";
-        xy = (232.0, column_source_rate(col, 232.0e3) / 1.0e6),
-        xytext = (345.0, 4.15),
-        ha = "center", va = "center", color = "#8c5218", fontsize = 11.5, fontweight = "bold",
-        bbox = Dict("boxstyle" => "round,pad=0.28", "facecolor" => "#fff8ef", "edgecolor" => "#d6a46c", "alpha" => 0.94),
-        arrowprops = Dict("arrowstyle" => "->", "color" => "#b07030", "lw" => 1.1, "connectionstyle" => "arc3,rad=-0.12"),
+        xy = (258.0, column_source_rate(col, 258.0e3) / 1.0e6),
+        xytext = (450.0, 0.55),
+        ha = "center", va = "center", color = "0.25", fontsize = st.annot_sm, fontweight = "bold",
+        bbox = Dict("boxstyle" => "round,pad=0.28", "facecolor" => "#f8f5ef", "edgecolor" => SET2_TAN, "alpha" => 0.94),
+        arrowprops = Dict("arrowstyle" => "->", "color" => REF_GRAY, "lw" => 1.1, "connectionstyle" => "arc3,rad=-0.18"),
     )
     ax_b.set_xlim(150.0, 900.0)
     ax_b.set_yscale("log")
-    ax_b.set_ylim(0.05, 8.5)
+    ax_b.set_ylim(0.05, 16.0)
     ax_b.set_yticks([0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0])
     ax_b.set_yticklabels(["0.05", "0.1", "0.2", "0.5", "1", "2", "5"])
     ax_b.minorticks_off()
-    ax_b.set_xlabel(raw"Altitude $h$ (km)"; fontsize = 13.5)
-    ax_b.set_ylabel(raw"Ion Density $n$ ($10^8\ \mathrm{m^{-3}}$)"; fontsize = 13.5)
-    ax_b.set_title(raw"(b) $\mathrm{O}_2^+$ Source Layer & $h_0$ Sensitivity (Oblique $\vec{B}$)"; fontsize = 14.0, fontweight = "bold", pad = 8.0)
-    ax_b.tick_params(axis = "both", which = "major", labelsize = 12.0)
+    ax_b.set_xlabel(raw"Altitude $h$ (km)"; fontsize = st.label)
+    ax_b.set_ylabel(raw"Ion Density $n$ ($10^8\ \mathrm{m^{-3}}$)"; fontsize = st.label)
+    ax_b.set_title(raw"(b) $\mathrm{O}_2^+$ Source Layer & $h_0$ Sensitivity (Oblique $\vec{B}$)"; fontsize = st.title_sm, fontweight = "bold", pad = 8.0)
+    ax_b.tick_params(axis = "both", which = "major", labelsize = st.tick)
     ax_b.grid(true; alpha = 0.25)
     ax_b.legend(;
-        loc = "upper right", fontsize = 11.0, framealpha = 0.94,
-        title = raw"$\Gamma_{800}$ ($10^{11}\ \mathrm{m^{-2}\,s^{-1}}$)", title_fontsize = 11.0
+        loc = "upper right", fontsize = round(st.legend * 0.96; digits = 1), framealpha = 0.94,
+        title = raw"$\Gamma_{800}$ ($10^{11}\ \mathrm{m^{-2}\,s^{-1}}$)", title_fontsize = round(st.legend * 0.96; digits = 1)
     )
 
     # --------------------------------------------------------------------------
@@ -258,15 +261,15 @@ function run_unified_tp_mhd_benchmark(;
     hall_pcts = [r.shares_800.hall_pct for r in runs]
     amb_pcts = [r.shares_800.amb_pct for r in runs]
 
-    b_c = ax_c.bar(x_pos .- bar_w, conv_pcts; width = bar_w, color = "#1f77b4", edgecolor = "black", linewidth = 0.6, label = raw"Convective $\langle\varepsilon_C\rangle$")
-    b_h = ax_c.bar(x_pos, hall_pcts; width = bar_w, color = "#ff7f0e", edgecolor = "black", linewidth = 0.6, label = raw"Hall $\langle\varepsilon_H\rangle$")
-    b_a = ax_c.bar(x_pos .+ bar_w, amb_pcts; width = bar_w, color = "#2ca02c", edgecolor = "black", linewidth = 0.6, label = raw"Ambipolar $\langle\varepsilon_A\rangle$")
+    b_c = ax_c.bar(x_pos .- bar_w, conv_pcts; width = bar_w, color = COL_CONV, edgecolor = "black", linewidth = 0.7, label = raw"Convective $\langle\varepsilon_C\rangle$")
+    b_h = ax_c.bar(x_pos, hall_pcts; width = bar_w, color = COL_HALL, edgecolor = "black", linewidth = 0.7, label = raw"Hall $\langle\varepsilon_H\rangle$")
+    b_a = ax_c.bar(x_pos .+ bar_w, amb_pcts; width = bar_w, color = COL_AMB, edgecolor = "black", linewidth = 0.7, label = raw"Ambipolar $\langle\varepsilon_A\rangle$")
 
     for (bars, vals) in ((b_c, conv_pcts), (b_h, hall_pcts), (b_a, amb_pcts))
         for (bar, val) in zip(bars, vals)
             cx = bar.get_x() + 0.5 * bar.get_width()
             lbl_str = val < 3.0 ? @sprintf("%.1f%%", val) : @sprintf("%.0f%%", val)
-            ax_c.text(cx, val + 1.4, lbl_str; ha = "center", va = "bottom", fontsize = 12.0)
+            ax_c.text(cx, val + 1.6, lbl_str; ha = "center", va = "bottom", fontsize = st.annot)
         end
     end
 
@@ -275,13 +278,13 @@ function run_unified_tp_mhd_benchmark(;
             for (z0v, r) in zip(z0_vals, runs)
     ]
     ax_c.set_xticks(x_pos)
-    ax_c.set_xticklabels(xtick_labels; fontsize = 12.5)
-    ax_c.tick_params(axis = "y", which = "major", labelsize = 12.0)
-    ax_c.set_ylim(0.0, 105.0)
-    ax_c.set_ylabel("Share of Total Work at 800 km (%)"; fontsize = 13.5)
-    ax_c.set_title(raw"(c) Cumulative Electric-Field Work Shares at 800 km vs. $h_0$"; fontsize = 14.0, fontweight = "bold", pad = 8.0)
+    ax_c.set_xticklabels(xtick_labels; fontsize = st.annot)
+    ax_c.tick_params(axis = "y", which = "major", labelsize = st.tick)
+    ax_c.set_ylim(0.0, 114.0)
+    ax_c.set_ylabel("Share of Total Work at 800 km (%)"; fontsize = st.label)
+    ax_c.set_title(raw"(c) Cumulative Electric-Field Work Shares at 800 km vs. $h_0$"; fontsize = st.title_sm, fontweight = "bold", pad = 8.0)
     ax_c.grid(true; axis = "y", alpha = 0.25)
-    ax_c.legend(; loc = "upper center", ncol = 3, fontsize = 12.0, framealpha = 0.94)
+    ax_c.legend(; loc = "upper center", ncol = 3, fontsize = round(st.legend * 1.06; digits = 1), framealpha = 0.94)
 
     fig.savefig(output_png; dpi = 300, bbox_inches = "tight", pad_inches = 0.10)
     PyPlot.plt.close(fig)

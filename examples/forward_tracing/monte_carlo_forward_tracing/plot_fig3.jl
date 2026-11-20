@@ -1,14 +1,14 @@
-# Publication-quality script for Figure 3 of the Mars O2+ test-particle manuscript:
-#   Left column (O2+ trajectories, 20,000 paths in blue-ish colormap):
+# Publication-quality script for Figure 3 of the Mars O2+ test-particle manuscript (2 rows x 3 columns):
+#   Top row (O2+ trajectories, 20,000 paths in blue-ish colormap):
 #     (a) XZ projection with BS (dashed), MPB (solid), Mars disk, Detector star at (-2, 0, 0) Rm,
 #         "Plume" label, and E_sw upward arrow
 #     (b) XY projection with BS, MPB, Mars disk, and Detector star
 #     (c) YZ projection with circular BS & MPB cross-sections at X = 0, Mars disk, and Detector star
-#   Right column (Local distributions at (-2, 0, 0) Rm):
-#     (d) Reduced VDF ∫f dv_y [cm^-3 (km s^-1)^-2] in (v_x, v_z) on [-50, 50] km/s, black background,
-#         white dashed crosshairs, and U_bulk, T, B annotations
+#   Bottom row (Local distributions at (-2, 0, 0) Rm):
+#     (d) Reduced VDF ∫f dv_y [cm^-3 (km s^-1)^-2] in (v_x, v_z) on [-50, 50] km/s, dark-gray background,
+#         gray dashed crosshairs, and U_bulk, T, B annotations
 #     (e) 1D omnidirectional energy spectrum PSD (s^3 m^-6) vs Energy (eV) step plot
-#     (f) 2D Energy (eV) vs Pitch angle (deg) PSD (s^3 m^-6) on black background
+#     (f) 2D Energy (eV) vs Pitch angle (deg) PSD (s^3 m^-6) on dark-gray background
 #
 # Usage:
 #   julia --project=. examples/forward_tracing/monte_carlo_forward_tracing/plot_fig3.jl [PAPER_DIR] [OUTPUT_PNG] [RAW_RUN_DIR]
@@ -19,6 +19,10 @@ using StaticArrays
 using LinearAlgebra
 using Printf
 using PyPlot
+
+if !isdefined(@__MODULE__, :paper_style)
+    include(joinpath(@__DIR__, "plot_style.jl"))
+end
 
 function _load_sampled_trajectories(paper_dir::AbstractString, raw_run_dir = nothing; count::Int = 20_000)
     sample_jld = joinpath(paper_dir, "trajectories_20000_sample.jld2")
@@ -157,34 +161,29 @@ function plot_fig3(
 
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
-    PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 18
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
-    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
+    st = paper_style(16.2; font_scale = 1.02)
 
-    fig, axes = plt.subplots(3, 2; figsize = (10.4, 14.2), layout = "constrained")
-    fig.set_constrained_layout_pads(w_pad = 0.02, h_pad = 0.03, wspace = 0.02, hspace = 0.03)
+    fig = plt.figure(figsize = (16.2, 10.6), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.04, wspace = 0.04, hspace = 0.05)
+    sfigs = fig.subfigures(2, 1; height_ratios = [1.0, 1.0])
+    sfig_top = sfigs[1]
+    sfig_bot = sfigs[2]
 
-    ax_a = axes[1, 1]
-    ax_b = axes[2, 1]
-    ax_c = axes[3, 1]
-    ax_d = axes[1, 2]
-    ax_e = axes[2, 2]
-    ax_f = axes[3, 2]
+    axes_top = sfig_top.subplots(1, 3)
+    axes_bot = sfig_bot.subplots(1, 3)
 
-    # Column headers
-    ax_a.set_title("O\$_2^+\$ trajectories"; fontsize = 21, fontweight = "bold", pad = 12)
-    ax_d.set_title("(\$−2, 0, 0\$) \$R_M\$"; fontsize = 21, fontweight = "bold", pad = 12)
+    ax_a = axes_top[1]
+    ax_b = axes_top[2]
+    ax_c = axes_top[3]
+    ax_d = axes_bot[1]
+    ax_e = axes_bot[2]
+    ax_f = axes_bot[3]
 
-    # Left column: (a) XZ, (b) XY, (c) YZ
+    # Row headers
+    sfig_top.suptitle("O\$_2^+\$ trajectories"; fontsize = round(st.title * 1.05; digits = 1), fontweight = "bold")
+    sfig_bot.suptitle("Local O\$_2^+\$ distributions at (\$−2, 0, 0\$) \$R_M\$"; fontsize = round(st.title * 1.05; digits = 1), fontweight = "bold")
+
+    # Top row: (a) XZ, (b) XY, (c) YZ
     for (ax, plane, tag, xlabel_str, ylabel_str, det_xy) in (
             (ax_a, "XZ", "(a)", "\$X_{MSE}\$ (\$R_M\$)", "\$Z_{MSE}\$ (\$R_M\$)", (-2.0, 0.0)),
             (ax_b, "XY", "(b)", "\$X_{MSE}\$ (\$R_M\$)", "\$Y_{MSE}\$ (\$R_M\$)", (-2.0, 0.0)),
@@ -194,33 +193,34 @@ function plot_fig3(
         _draw_mars_and_boundaries!(ax, plane; xmin = -4.0)
         ax.scatter(
             [det_xy[1]], [det_xy[2]];
-            marker = "*", s = 230, facecolor = "#ffd700", edgecolor = "black", lw = 1.0, zorder = 9,
+            marker = "*", s = 230, facecolor = SET2_YELLOW, edgecolor = "black", lw = 1.0, zorder = 9,
         )
         ax.set_xlim(-4.0, 4.0)
         ax.set_ylim(-4.0, 4.0)
         ax.set_aspect("equal")
         ax.set_xticks(-4:2:4)
         ax.set_yticks(-4:2:4)
-        ax.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-        ax.set_xlabel(xlabel_str; fontsize = 19.5)
-        ax.set_ylabel(ylabel_str; fontsize = 19.5)
-        ax.text(0.96, 0.04, tag; transform = ax.transAxes, color = "black", fontsize = 21, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
+        ax.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+        ax.set_xlabel(xlabel_str; fontsize = st.label)
+        ax.set_ylabel(ylabel_str; fontsize = st.label)
+        ax.text(0.96, 0.04, tag; transform = ax.transAxes, color = "black", fontsize = st.panel, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
     end
 
     # Annotations on panel a
     pe = PyPlot.PyCall.pyimport("matplotlib.patheffects")
-    txt_det = ax_a.text(-2.0, 0.55, "Detector"; fontsize = 17.5, fontweight = "bold", ha = "center", va = "bottom", zorder = 10)
-    txt_det.set_path_effects([pe.withStroke(linewidth = 2.8, foreground = "white")])
-    ax_a.text(0.85, 2.55, "Plume"; fontsize = 17.5, ha = "center", va = "center", zorder = 10)
+    txt_det = ax_a.text(-2.0, 0.55, "Detector"; fontsize = st.annot, fontweight = "bold", ha = "center", va = "bottom", zorder = 10)
+    txt_det.set_path_effects([pe.withStroke(linewidth = 2.6, foreground = "white")])
+    ax_a.text(0.85, 2.55, "Plume"; fontsize = st.annot, ha = "center", va = "center", zorder = 10)
     ax_a.annotate(
         "", xy = (3.45, 2.6), xytext = (3.45, 0.8),
-        arrowprops = Dict("arrowstyle" => "-|>", "color" => "black", "lw" => 2.0, "mutation_scale" => 16),
+        arrowprops = Dict("arrowstyle" => "-|>", "color" => "black", "lw" => 2.0, "mutation_scale" => 15),
         zorder = 10,
     )
-    ax_a.text(3.25, 1.7, "\$E_{sw}\$"; fontsize = 18.5, ha = "right", va = "center")
+    ax_a.text(3.25, 1.7, "\$E_{sw}\$"; fontsize = st.annot, ha = "right", va = "center")
 
     # (d) Reduced VDF in Vx-Vz on [-50, 50] km/s
-    ax_d.set_facecolor("black")
+    cmap_c = paper_cmap_continuous()
+    ax_d.set_facecolor(PAPER_BAD_COLOR)
     fxz_plot = replace(permutedims(d.fxz), 0.0 => NaN)
     vx_km = d.vx_edges !== nothing ? d.vx_edges ./ 1.0e3 : d.vx_c ./ 1.0e3
     vz_km = d.vz_edges !== nothing ? d.vz_edges ./ 1.0e3 : d.vz_c ./ 1.0e3
@@ -228,72 +228,68 @@ function plot_fig3(
     vdf_vmax = fxz_max < 0.05 ? 1.0e-2 : 1.0e0
     vdf_vmin = vdf_vmax * 1.0e-3
     norm_d = matplotlib.colors.LogNorm(vmin = vdf_vmin, vmax = vdf_vmax)
-    im_d = ax_d.pcolormesh(vx_km, vz_km, fxz_plot; cmap = "turbo", norm = norm_d, shading = "auto", rasterized = true)
-    ax_d.axhline(0.0; color = "white", ls = "--", lw = 1.0, alpha = 0.85)
-    ax_d.axvline(0.0; color = "white", ls = "--", lw = 1.0, alpha = 0.85)
+    im_d = ax_d.pcolormesh(vx_km, vz_km, fxz_plot; cmap = cmap_c, norm = norm_d, shading = "auto", rasterized = true)
+    ax_d.axhline(0.0; color = REF_ON_DARK, ls = "--", lw = 1.0, alpha = 0.80)
+    ax_d.axvline(0.0; color = REF_ON_DARK, ls = "--", lw = 1.0, alpha = 0.80)
     ax_d.set_xlim(-50.0, 50.0)
     ax_d.set_ylim(-50.0, 50.0)
     ax_d.set_aspect("equal")
     ax_d.set_xticks(-50:25:50)
     ax_d.set_yticks(-50:25:50)
-    ax_d.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = 19.5)
-    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = 19.5)
-    ax_d.text(0.96, 0.04, "(d)"; transform = ax_d.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
+    ax_d.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_d.set_xlabel("\$v_x\$ (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_d.set_ylabel("\$v_z\$ (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_d.text(0.96, 0.04, "(d)"; transform = ax_d.transAxes, color = "white", fontsize = st.panel, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
 
     _nz(v, tol) = abs(v) < tol ? 0.0 : v
     u_str = @sprintf("\$U_{bulk} = (%.1f, %.1f, %.1f)\$ km s\$^{-1}\$\n\$T = %.2f\$ eV", _nz(d.u_bulk_kms[1], 0.05), _nz(d.u_bulk_kms[2], 0.05), _nz(d.u_bulk_kms[3], 0.05), d.T_eV)
-    ax_d.text(0.03, 0.94, u_str; transform = ax_d.transAxes, color = "white", fontsize = 12.5, va = "top", ha = "left", linespacing = 1.35, zorder = 10)
+    ax_d.text(0.03, 0.94, u_str; transform = ax_d.transAxes, color = "white", fontsize = st.annot_sm, va = "top", ha = "left", linespacing = 1.35, zorder = 10)
     b_str = @sprintf("\$B = (%.2f, %.2f, %.2f)\$ nT", _nz(d.b_nT[1], 0.005), _nz(d.b_nT[2], 0.005), _nz(d.b_nT[3], 0.005))
-    ax_d.text(0.03, 0.04, b_str; transform = ax_d.transAxes, color = "white", fontsize = 11.5, va = "bottom", ha = "left", zorder = 10)
-    cax_d = ax_d.inset_axes([1.035, 0.0, 0.046, 1.0])
-    cb_d = fig.colorbar(im_d; cax = cax_d)
-    cb_d.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
-    cb_d.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_d.set_label("\$\\int f\\,dv_y\$ [cm\$^{-3}\$ (km s\$^{-1}\$)\$^{-2}\$]"; fontsize = 18)
+    ax_d.text(0.03, 0.04, b_str; transform = ax_d.transAxes, color = "white", fontsize = st.annot_sm, va = "bottom", ha = "left", zorder = 10)
+    cb_d = sfig_bot.colorbar(im_d; ax = ax_d, fraction = 0.048, pad = 0.025)
+    style_colorbar!(cb_d, st; label = "\$\\int f\\,dv_y\$ [cm\$^{-3}\$ (km s\$^{-1}\$)\$^{-2}\$]")
 
     # (e) 1D PSD vs Energy step plot
     pos_e = d.psd_1d .> 0.0
     if any(pos_e)
-        ax_e.step(d.ec[pos_e], d.psd_1d[pos_e]; where = "mid", color = "black", lw = 1.9)
+        ax_e.step(d.ec[pos_e], d.psd_1d[pos_e]; where = "mid", color = COL_TOTAL, lw = 2.1)
     end
     ax_e.set_xscale("log")
     ax_e.set_yscale("log")
     ax_e.set_xlim(4.0, 3.5e3)
     ax_e.set_ylim(1.0e-21, 1.0e-5)
-    ax_e.set_yticks(10.0 .^ (-21:2:-5))
+    ax_e.set_yticks(10.0 .^ (-21:4:-5))
+    ax_e.set_box_aspect(1.0)
     ax_e.grid(true; which = "major", ls = "--", lw = 0.75, color = "0.72", alpha = 0.85)
     ax_e.grid(true; which = "minor", ls = ":", lw = 0.5, color = "0.85", alpha = 0.65)
-    ax_e.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_e.tick_params(axis = "both", which = "minor", length = 4.5, width = 1.1)
-    ax_e.set_xlabel("Energy (eV)"; fontsize = 19.5)
-    ax_e.set_ylabel("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 19.5)
-    ax_e.text(0.96, 0.04, "(e)"; transform = ax_e.transAxes, color = "black", fontsize = 21, fontweight = "bold", va = "bottom", ha = "right", zorder = 10)
+    ax_e.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_e.tick_params(axis = "both", which = "minor", length = st.min_sz, width = st.min_w)
+    ax_e.set_xlabel("Energy (eV)"; fontsize = st.label)
+    ax_e.set_ylabel("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = st.label)
+    ax_e.text(0.04, 0.04, "(e)"; transform = ax_e.transAxes, color = "black", fontsize = st.panel, fontweight = "bold", va = "bottom", ha = "left", zorder = 10)
 
     # (f) 2D Energy vs Pitch angle PSD
-    ax_f.set_facecolor("black")
+    ax_f.set_facecolor(PAPER_BAD_COLOR)
     epa_plot = copy(d.epa_psd) # (n_E, n_PA) -> y is Energy, x is Pitch angle
     epa_plot[epa_plot .<= 0.0] .= NaN
     epa_max = maximum(d.epa_psd)
     epa_vmax = epa_max < 1.0e-6 ? 5.0e-7 : 3.0e-6
     epa_vmin = epa_max < 1.0e-6 ? 1.0e-9 : 5.0e-9
     norm_f = matplotlib.colors.LogNorm(vmin = epa_vmin, vmax = epa_vmax)
-    im_f = ax_f.pcolormesh(d.pa_edges, d.edges, epa_plot; cmap = "turbo", norm = norm_f, shading = "auto", rasterized = true)
+    im_f = ax_f.pcolormesh(d.pa_edges, d.edges, epa_plot; cmap = cmap_c, norm = norm_f, shading = "auto", rasterized = true)
     ax_f.set_yscale("log")
     ax_f.set_xlim(0.0, 180.0)
     ax_f.set_ylim(6.0, 3.0e3)
     ax_f.set_xticks(0:30:180)
-    ax_f.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_f.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
-    ax_f.set_xlabel("Pitch angle (deg)"; fontsize = 19.5)
-    ax_f.set_ylabel("Energy (eV)"; fontsize = 19.5)
-    ax_f.text(0.04, 0.04, "(f)"; transform = ax_f.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "bottom", ha = "left", zorder = 10)
+    ax_f.set_box_aspect(1.0)
+    ax_f.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_f.tick_params(axis = "y", which = "minor", length = st.min_sz, width = st.min_w)
+    ax_f.set_xlabel("Pitch angle (deg)"; fontsize = st.label)
+    ax_f.set_ylabel("Energy (eV)"; fontsize = st.label)
+    ax_f.text(0.04, 0.04, "(f)"; transform = ax_f.transAxes, color = "white", fontsize = st.panel, fontweight = "bold", va = "bottom", ha = "left", zorder = 10)
 
-    cax_f = ax_f.inset_axes([1.035, 0.0, 0.046, 1.0])
-    cb_f = fig.colorbar(im_f; cax = cax_f)
-    cb_f.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
-    cb_f.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_f.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 18)
+    cb_f = sfig_bot.colorbar(im_f; ax = ax_f, fraction = 0.048, pad = 0.025)
+    style_colorbar!(cb_f, st; label = "PSD (s\$^3\$ m\$^{-6}\$)")
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")

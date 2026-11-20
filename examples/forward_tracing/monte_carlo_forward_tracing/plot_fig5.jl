@@ -20,6 +20,10 @@ using LinearAlgebra
 using Printf
 using PyPlot
 
+if !isdefined(@__MODULE__, :paper_style)
+    include(joinpath(@__DIR__, "plot_style.jl"))
+end
+
 if !isdefined(@__MODULE__, :_load_sampled_trajectories)
     include(joinpath(@__DIR__, "plot_fig3.jl"))
 end
@@ -79,18 +83,7 @@ function plot_fig5(
 
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
-    PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 17.5
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 17.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 17.5
-    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.0
-    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.0
-    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.2
-    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.2
-    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
-    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
+    st = paper_style(18.4)
 
     fig = plt.figure(figsize = (18.4, 10.6), layout = "constrained")
     fig.set_constrained_layout_pads(w_pad = 0.04, h_pad = 0.04, wspace = 0.05, hspace = 0.06)
@@ -108,20 +101,20 @@ function plot_fig5(
     ax_e = axes_bot[2]
     ax_f = axes_bot[3]
 
-    # (a) XZ trajectories + red virtual orbit arc (2.5 Rm)
+    # (a) XZ trajectories + virtual orbit arc (2.5 Rm)
     _draw_blue_trajectories!(ax_a, paths, "XZ")
-    bs_mpb(ax_a, "XZ"; draw_bs = true, draw_mpb = false, xmin = -4.0, boundary_color = "black", boundary_ls = "--", boundary_lw = 1.1)
-    bs_mpb(ax_a, "XZ"; draw_bs = false, draw_mpb = true, xmin = -4.0, boundary_color = "black", boundary_ls = "-", boundary_lw = 1.1)
+    bs_mpb(ax_a, "XZ"; draw_bs = true, draw_mpb = false, xmin = -4.0, boundary_color = REF_BLACK, boundary_ls = "--", boundary_lw = 1.1)
+    bs_mpb(ax_a, "XZ"; draw_bs = false, draw_mpb = true, xmin = -4.0, boundary_color = REF_BLACK, boundary_ls = "-", boundary_lw = 1.1)
     plot_mars(ax_a; radius = 1.0, zorder = 5)
 
     ang_arc = range(0.0, 240.0; length = 241)
     r_orb = d.r_orbit
-    ax_a.plot(r_orb .* cosd.(ang_arc), r_orb .* sind.(ang_arc); color = "#d6192b", lw = 2.2, zorder = 7)
+    ax_a.plot(r_orb .* cosd.(ang_arc), r_orb .* sind.(ang_arc); color = COL_ACCENT, lw = 2.6, zorder = 7)
     mark_angles = (0, 60, 120, 180, 240)
     for ang in mark_angles
         xm = r_orb * cosd(ang)
         zm = r_orb * sind(ang)
-        ax_a.scatter([xm], [zm]; s = 26, color = "#d6192b", zorder = 8)
+        ax_a.scatter([xm], [zm]; s = 34, facecolor = COL_ACCENT, edgecolor = "black", lw = 0.6, zorder = 8)
         dx, dz, ha_str, va_str = if ang == 0
             (0.10, 0.0, "left", "center")
         elseif ang == 60
@@ -133,22 +126,22 @@ function plot_fig5(
         else
             (-0.08, -0.16, "center", "top")
         end
-        ax_a.text(xm + dx, zm + dz, "$(ang)°"; fontsize = 16.5, color = "black", ha = ha_str, va = va_str, zorder = 9)
+        ax_a.text(xm + dx, zm + dz, "$(ang)°"; fontsize = st.annot, color = "black", ha = ha_str, va = va_str, zorder = 9)
     end
-    ax_a.text(2.8, -1.0, "Virtual\ntrajectory"; color = "#d6192b", fontsize = 16.0, ha = "center", va = "center")
+    ax_a.text(2.8, -1.0, "Virtual\ntrajectory"; color = COL_ACCENT, fontweight = "bold", fontsize = st.annot, ha = "center", va = "center")
     ax_a.set_xlim(-4.0, 4.0)
     ax_a.set_ylim(-3.0, 4.0)
     ax_a.set_aspect("equal")
     ax_a.set_xticks(-4:2:4)
     ax_a.set_yticks(-3:1:4)
-    ax_a.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = 19)
-    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 19)
-    ax_a.text(0.03, 0.95, "(a)"; transform = ax_a.transAxes, fontsize = 20.5, fontweight = "bold", va = "top", ha = "left")
+    ax_a.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_a.set_xlabel("\$X_{MSE}\$ (\$R_M\$)"; fontsize = st.label)
+    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = st.label)
+    ax_a.text(0.03, 0.95, "(a)"; transform = ax_a.transAxes, fontsize = st.panel, fontweight = "bold", va = "top", ha = "left")
 
     # (b) PSD vs Orbit Angle and Energy
-    ax_b.set_facecolor("black")
-    cmap_b = matplotlib.cm.get_cmap("turbo").copy()
-    cmap_b.set_bad(color = "black")
+    ax_b.set_facecolor(PAPER_BAD_COLOR)
+    cmap_b = paper_cmap_continuous()
     psd_plot = copy(permutedims(d.psd))
     psd_plot[psd_plot .<= 0.0] .= NaN
     norm_b = matplotlib.colors.LogNorm(vmin = 1.0e-20, vmax = 1.0e-4)
@@ -157,57 +150,57 @@ function plot_fig5(
     ax_b.set_xlim(0.0, 240.0)
     ax_b.set_ylim(1.0e0, 1.0e5)
     ax_b.set_xticks(0:60:240)
-    ax_b.set_xlabel("Orbit Angle (deg)"; fontsize = 19)
-    ax_b.set_ylabel("Energy (eV)"; fontsize = 19)
-    ax_b.text(0.03, 0.95, "(b)"; transform = ax_b.transAxes, color = "white", fontsize = 20.5, fontweight = "bold", va = "top", ha = "left")
+    ax_b.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_b.tick_params(axis = "y", which = "minor", length = st.min_sz, width = st.min_w)
+    ax_b.set_xlabel("Orbit Angle (deg)"; fontsize = st.label)
+    ax_b.set_ylabel("Energy (eV)"; fontsize = st.label)
+    ax_b.text(0.03, 0.95, "(b)"; transform = ax_b.transAxes, color = "white", fontsize = st.panel, fontweight = "bold", va = "top", ha = "left")
 
     ax_b.annotate(
         "Beam", xy = (96.0, 1.4e4), xytext = (122.0, 3.6e4),
-        color = "white", fontsize = 16.5, ha = "left", va = "center",
+        color = "white", fontsize = st.annot, ha = "left", va = "center",
         arrowprops = Dict("arrowstyle" => "->", "color" => "white", "lw" => 1.6),
     )
     ax_b.annotate(
         "Low-energy\nions", xy = (182.0, 1.0e1), xytext = (152.0, 1.2e1),
-        color = "white", fontsize = 15.5, ha = "right", va = "center",
+        color = "white", fontsize = st.annot_sm, ha = "right", va = "center",
         arrowprops = Dict("arrowstyle" => "->", "color" => "white", "lw" => 1.6),
     )
 
     # Top +E / -E hemisphere bar above panel b
-    ax_b.plot([0.0, 240.0], [1.04, 1.04]; color = "black", lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
+    ax_b.plot([0.0, 240.0], [1.04, 1.04]; color = REF_BLACK, lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
     for xv in (0.0, 180.0, 240.0)
-        ax_b.plot([xv, xv], [1.01, 1.07]; color = "black", lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
+        ax_b.plot([xv, xv], [1.01, 1.07]; color = REF_BLACK, lw = 1.1, transform = ax_b.get_xaxis_transform(), clip_on = false)
     end
-    ax_b.text(90.0, 1.08, "+E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = 16.5, ha = "center", va = "bottom", clip_on = false)
-    ax_b.text(210.0, 1.08, "−E"; transform = ax_b.get_xaxis_transform(), fontsize = 16.5, ha = "center", va = "bottom", clip_on = false)
+    ax_b.text(90.0, 1.08, "+E hemisphere"; transform = ax_b.get_xaxis_transform(), fontsize = st.annot, ha = "center", va = "bottom", clip_on = false)
+    ax_b.text(210.0, 1.08, "−E"; transform = ax_b.get_xaxis_transform(), fontsize = st.annot, ha = "center", va = "bottom", clip_on = false)
 
     cb_b = sfig_top.colorbar(im_b; ax = ax_b, location = "right", fraction = 0.048, pad = 0.03)
-    cb_b.ax.tick_params(which = "major", labelsize = 16, length = 5.5, width = 1.3)
-    cb_b.ax.tick_params(which = "minor", length = 3.2, width = 1.0)
-    cb_b.set_label("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 18)
+    style_colorbar!(cb_b, st; label = "PSD (s\$^3\$ m\$^{-6}\$)")
 
     # (c) 1D Energy-integrated mean cumulative work vs Orbit Angle
-    ax_c.axhline(0.0; color = "0.50", ls = ":", lw = 1.2)
-    ax_c.axvline(180.0; color = "0.45", ls = "--", lw = 1.2)
-    ax_c.plot(d.angles, d.wt_1d; color = "black", ls = "--", lw = 2.5, label = "\$\\langle\\varepsilon_T\\rangle\$ (Total)", zorder = 5)
-    ax_c.plot(d.angles, d.wc_1d; color = "#0072B2", lw = 2.2, label = "\$\\langle\\varepsilon_C\\rangle\$ (Conv)", zorder = 4)
-    ax_c.plot(d.angles, d.wh_1d; color = "#D55E00", lw = 2.2, label = "\$\\langle\\varepsilon_H\\rangle\$ (Hall)", zorder = 4)
-    ax_c.plot(d.angles, d.wa_1d; color = "#009E73", lw = 2.2, label = "\$\\langle\\varepsilon_A\\rangle\$ (Amb)", zorder = 4)
+    ax_c.axhline(0.0; color = REF_GRAY, ls = ":", lw = 1.2)
+    ax_c.axvline(180.0; color = REF_GRAY, ls = "--", lw = 1.2)
+    ax_c.plot(d.angles, d.wt_1d; color = COL_TOTAL, ls = "--", lw = st.lw_total, label = "\$\\langle\\varepsilon_T\\rangle\$ (Total)", zorder = 5)
+    ax_c.plot(d.angles, d.wc_1d; color = COL_CONV, lw = st.lw_curve, label = "\$\\langle\\varepsilon_C\\rangle\$ (Conv)", zorder = 4)
+    ax_c.plot(d.angles, d.wh_1d; color = COL_HALL, lw = st.lw_curve, label = "\$\\langle\\varepsilon_H\\rangle\$ (Hall)", zorder = 4)
+    ax_c.plot(d.angles, d.wa_1d; color = COL_AMB, lw = st.lw_curve, label = "\$\\langle\\varepsilon_A\\rangle\$ (Amb)", zorder = 4)
     ax_c.set_yscale("symlog"; linthresh = 10.0, linscale = 0.8)
     ax_c.set_xlim(0.0, 240.0)
     ax_c.set_ylim(-1.0e3, 2.5e4)
     ax_c.set_xticks(0:60:240)
     ax_c.set_yticks([-1.0e3, -1.0e2, -1.0e1, 0.0, 1.0e1, 1.0e2, 1.0e3, 1.0e4])
-    ax_c.set_xlabel("Orbit Angle (deg)"; fontsize = 19)
-    ax_c.set_ylabel("Mean cumulative work (eV)"; fontsize = 19)
+    ax_c.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_c.set_xlabel("Orbit Angle (deg)"; fontsize = st.label)
+    ax_c.set_ylabel("Mean cumulative work (eV)"; fontsize = st.label)
     ax_c.grid(true; which = "major", alpha = 0.25)
-    ax_c.legend(loc = "lower left", fontsize = 14.5, frameon = true, facecolor = "white", edgecolor = "0.78", framealpha = 0.92)
-    ax_c.text(0.03, 0.95, "(c)"; transform = ax_c.transAxes, fontsize = 20.5, fontweight = "bold", va = "top", ha = "left")
-    ax_c.text(176.0, 1.7e4, "+E"; fontsize = 15.5, color = "0.35", ha = "right", va = "center")
-    ax_c.text(184.0, 1.7e4, "−E"; fontsize = 15.5, color = "0.35", ha = "left", va = "center")
+    ax_c.legend(loc = "lower left", fontsize = st.legend, frameon = true, facecolor = "white", edgecolor = "0.78", framealpha = 0.92)
+    ax_c.text(0.03, 0.95, "(c)"; transform = ax_c.transAxes, fontsize = st.panel, fontweight = "bold", va = "top", ha = "left", bbox = Dict("boxstyle" => "square,pad=0.12", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.78), zorder = 10)
+    ax_c.text(176.0, 1.7e4, "+E"; fontsize = st.annot, color = "0.35", ha = "right", va = "center")
+    ax_c.text(184.0, 1.7e4, "−E"; fontsize = st.annot, color = "0.35", ha = "left", va = "center")
 
-    # (d)-(f) 2D Mean cumulative work spectrograms (RdBu_r, SymLogNorm linthresh = 10.0, black unoccupied bins)
-    cmap_w = matplotlib.cm.get_cmap("RdBu_r").copy()
-    cmap_w.set_bad(color = "black")
+    # (d)-(f) 2D Mean cumulative work spectrograms (RdBu_r, SymLogNorm linthresh = 10.0, dark-gray unoccupied bins)
+    cmap_w = paper_cmap_diverging()
     norm_w = matplotlib.colors.SymLogNorm(linthresh = 10.0, linscale = 0.8, vmin = -1.0e4, vmax = 1.0e4, base = 10)
     occ_perm = permutedims(d.w_tau .> 0.0)
 
@@ -218,7 +211,7 @@ function plot_fig5(
     )
     im_w = nothing
     for (ax, mat, tag, sym_lbl, show_y) in work_panels
-        ax.set_facecolor("black")
+        ax.set_facecolor(PAPER_BAD_COLOR)
         mat_plot = copy(permutedims(mat))
         mat_plot[.!occ_perm .| .!isfinite.(mat_plot)] .= NaN
         im_w = ax.pcolormesh(d.angles, d.ec, mat_plot; cmap = cmap_w, norm = norm_w, shading = "auto", rasterized = true)
@@ -227,21 +220,21 @@ function plot_fig5(
         ax.set_ylim(1.0e0, 1.0e5)
         ax.set_xticks(0:60:240)
         ax.set_yticks([1.0e0, 1.0e1, 1.0e2, 1.0e3, 1.0e4, 1.0e5])
-        ax.set_xlabel("Orbit Angle (deg)"; fontsize = 19)
+        ax.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+        ax.tick_params(axis = "y", which = "minor", length = st.min_sz, width = st.min_w)
+        ax.set_xlabel("Orbit Angle (deg)"; fontsize = st.label)
         if show_y
-            ax.set_ylabel("Energy (eV)"; fontsize = 19)
+            ax.set_ylabel("Energy (eV)"; fontsize = st.label)
         else
             ax.tick_params(labelleft = false)
         end
-        ax.text(0.03, 0.94, tag; transform = ax.transAxes, color = "white", fontsize = 20.5, fontweight = "bold", va = "top", ha = "left", zorder = 10)
-        ax.text(0.96, 0.93, sym_lbl; transform = ax.transAxes, color = "white", fontsize = 18.0, va = "top", ha = "right", zorder = 10)
+        ax.text(0.03, 0.94, tag; transform = ax.transAxes, color = "white", fontsize = st.panel, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+        ax.text(0.96, 0.93, sym_lbl; transform = ax.transAxes, color = "white", fontsize = st.annot, va = "top", ha = "right", zorder = 10)
     end
 
     cb_w = sfig_bot.colorbar(im_w; ax = collect(axes_bot), location = "right", fraction = 0.022, pad = 0.02)
     cb_w.set_ticks([-1.0e4, -1.0e3, -1.0e2, -1.0e1, 0.0, 1.0e1, 1.0e2, 1.0e3, 1.0e4])
-    cb_w.ax.tick_params(which = "major", labelsize = 16.5, length = 6.0, width = 1.3)
-    cb_w.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-    cb_w.set_label("Mean cumulative work \$\\langle\\varepsilon_\\ell\\rangle\$ (eV)"; fontsize = 18.5)
+    style_colorbar!(cb_w, st; label = "Mean cumulative work \$\\langle\\varepsilon_\\ell\\rangle\$ (eV)")
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")

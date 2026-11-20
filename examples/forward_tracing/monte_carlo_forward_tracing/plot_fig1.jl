@@ -14,6 +14,10 @@ using LinearAlgebra
 using Printf
 using PyPlot
 
+if !isdefined(@__MODULE__, :paper_style)
+    include(joinpath(@__DIR__, "plot_style.jl"))
+end
+
 const Vec3 = SVector{3, Float64}
 
 function _default_fig1_field_path()
@@ -134,63 +138,50 @@ function plot_fig1(
         end
     end
 
-    PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 18
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
-    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
+    st = paper_style(13.2; font_scale = 1.15)
 
-    fig, axes = plt.subplots(2, 2; figsize = (12.0, 12.2), layout = "constrained")
-    fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.04, wspace = 0.03, hspace = 0.04)
+    fig, axes = plt.subplots(2, 2; figsize = (13.2, 12.8), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.02, h_pad = 0.02, wspace = 0.04, hspace = 0.03)
 
+    cmap_c = paper_cmap_continuous()
     panels = (
-        (axes[1, 1], b_mag, bx_u, by_u, "a", "Magnetic field, XY", "Y (Rm)", L"$|\mathbf{B}|$ (nT)", (1.0e0, 4.0e1)),
-        (axes[1, 2], ec_xz, ecx_u, ecz_u, "b", "Convective electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{C,xz}|$ (mV/m)", (1.0e-2, 4.0e0)),
-        (axes[2, 1], eh_xz, ehx_u, ehz_u, "c", "Hall electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{H,xz}|$ (mV/m)", (1.0e-5, 1.0e0)),
-        (axes[2, 2], ea_xz, eax_u, eaz_u, "d", "Ambipolar electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{A,xz}|$ (mV/m)", (2.0e-5, 3.0e-1)),
+        (axes[1, 1], b_mag, bx_u, by_u, "(a)", "Magnetic field, XY", "Y (Rm)", L"$|\mathbf{B}|$ (nT)", (1.0e0, 4.0e1)),
+        (axes[1, 2], ec_xz, ecx_u, ecz_u, "(b)", "Convective electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{C,xz}|$ (mV/m)", (1.0e-2, 4.0e0)),
+        (axes[2, 1], eh_xz, ehx_u, ehz_u, "(c)", "Hall electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{H,xz}|$ (mV/m)", (1.0e-5, 1.0e0)),
+        (axes[2, 2], ea_xz, eax_u, eaz_u, "(d)", "Ambipolar electric field, XZ", "Z (Rm)", L"$|\mathbf{E}_{A,xz}|$ (mV/m)", (2.0e-5, 3.0e-1)),
     )
 
     th = range(0.0, 2pi; length = 240)
     for (ax, mat, ux, uy, tag, title_str, ylabel_str, cbar_lbl, (vmin, vmax)) in panels
         norm_c = matplotlib.colors.LogNorm(vmin = vmin, vmax = vmax)
-        im = ax.pcolormesh(xs, ys, mat; cmap = "turbo", norm = norm_c, shading = "auto", rasterized = true)
+        im = ax.pcolormesh(xs, ys, mat; cmap = cmap_c, norm = norm_c, shading = "auto", rasterized = true)
         ax.quiver(
             xq, yq, ux, uy;
             color = "black", pivot = "mid", scale = 20.5, width = 0.0046,
             headwidth = 4.2, headlength = 5.0, headaxislength = 4.4, zorder = 3,
         )
         plot_mars(ax; radius = 1.0, zorder = 5)
-        ax.plot(cos.(th), sin.(th); color = "white", lw = 1.8, zorder = 6)
-        ax.plot(r_min_Rm .* cos.(th), r_min_Rm .* sin.(th); color = "0.75", lw = 1.1, zorder = 6)
+        ax.plot(cos.(th), sin.(th); color = REF_ON_DARK, lw = 1.8, zorder = 6)
+        ax.plot(r_min_Rm .* cos.(th), r_min_Rm .* sin.(th); color = "0.55", lw = 1.1, zorder = 6)
 
         ax.set_xlim(-4.0, 2.0)
         ax.set_ylim(-4.0, 4.0)
         ax.set_aspect("equal")
         ax.set_xticks([-4, -2, 0, 2])
         ax.set_yticks([-4, -2, 0, 2, 4])
-        ax.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-        ax.set_xlabel("X (Rm)"; fontsize = 19.5)
-        ax.set_ylabel(ylabel_str; fontsize = 19.5)
-        ax.set_title(title_str; fontsize = 20.5, pad = 9)
+        ax.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+        ax.set_xlabel("X (Rm)"; fontsize = st.label)
+        ax.set_ylabel(ylabel_str; fontsize = st.label)
+        ax.set_title(title_str; fontsize = st.title, pad = 9)
         ax.text(
             0.03, 0.95, tag;
-            transform = ax.transAxes, fontsize = 22, fontweight = "bold",
+            transform = ax.transAxes, fontsize = st.panel, fontweight = "bold",
             va = "top", ha = "left",
             bbox = Dict("boxstyle" => "square,pad=0.2", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.9),
             zorder = 10,
         )
-        cax = ax.inset_axes([1.035, 0.0, 0.048, 1.0])
-        cb = fig.colorbar(im; cax = cax)
-        cb.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
-        cb.ax.tick_params(which = "minor", length = 3.5, width = 1.0)
-        cb.set_label(cbar_lbl; fontsize = 19)
+        cb = fig.colorbar(im; ax = ax, fraction = 0.056, pad = 0.03)
+        style_colorbar!(cb, st; label = cbar_lbl)
     end
 
     mkpath(dirname(abspath(out_png)))

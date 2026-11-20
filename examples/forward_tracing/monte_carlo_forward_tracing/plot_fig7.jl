@@ -20,6 +20,10 @@ using LinearAlgebra
 using Printf
 using PyPlot
 
+if !isdefined(@__MODULE__, :paper_style)
+    include(joinpath(@__DIR__, "plot_style.jl"))
+end
+
 if !isdefined(@__MODULE__, :_load_sampled_trajectories)
     include(joinpath(@__DIR__, "plot_fig3.jl"))
 end
@@ -103,21 +107,10 @@ function plot_fig7(
 
     paths = _load_sampled_trajectories(paper_dir, raw_run_dir; count = 20_000)
 
-    PyPlot.matplotlib.rcParams["font.sans-serif"] = ["Arial", "DejaVu Sans"]
-    PyPlot.matplotlib.rcParams["font.size"] = 18
-    PyPlot.matplotlib.rcParams["xtick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["ytick.labelsize"] = 18.5
-    PyPlot.matplotlib.rcParams["xtick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["ytick.major.size"] = 7.5
-    PyPlot.matplotlib.rcParams["xtick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["ytick.major.width"] = 1.4
-    PyPlot.matplotlib.rcParams["xtick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["ytick.minor.size"] = 4.5
-    PyPlot.matplotlib.rcParams["xtick.minor.width"] = 1.1
-    PyPlot.matplotlib.rcParams["ytick.minor.width"] = 1.1
+    st = paper_style(14.2)
 
-    fig, axes = plt.subplots(4, 2; figsize = (13.4, 12.6), layout = "constrained")
-    fig.set_constrained_layout_pads(w_pad = 0.03, h_pad = 0.03, wspace = 0.03, hspace = 0.03)
+    fig, axes = plt.subplots(4, 2; figsize = (14.2, 13.4), layout = "constrained")
+    fig.set_constrained_layout_pads(w_pad = 0.015, h_pad = 0.015, wspace = 0.02, hspace = 0.02)
 
     ax_a = axes[1, 1]
     ax_b = axes[1, 2]
@@ -136,11 +129,11 @@ function plot_fig7(
     # (a) YZ trajectories + Mars disk + Virtual trajectory line
     _draw_blue_trajectories!(ax_a, paths, "YZ")
     plot_mars(ax_a; radius = 1.0, zorder = 5)
-    ax_a.plot([y_min_plot, y_max_plot], [d.tail_z_Rm, d.tail_z_Rm]; color = "#d6192b", lw = 2.2, zorder = 8)
+    ax_a.plot([y_min_plot, y_max_plot], [d.tail_z_Rm, d.tail_z_Rm]; color = COL_ACCENT, lw = 2.6, zorder = 8)
     ax_a.text(
         y_mid_plot, d.tail_z_Rm + 0.14, "Virtual trajectory";
-        color = "#d6192b", fontsize = 16.5, ha = "center", va = "bottom",
-        bbox = Dict("boxstyle" => "square,pad=0.12", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.78),
+        color = COL_ACCENT, fontweight = "bold", fontsize = st.annot, ha = "center", va = "bottom",
+        bbox = Dict("boxstyle" => "square,pad=0.12", "facecolor" => "white", "edgecolor" => "none", "alpha" => 0.82),
         zorder = 9,
     )
     ax_a.set_xlim(-2.0, 2.0)
@@ -153,27 +146,26 @@ function plot_fig7(
     end
     ax_a.set_aspect("equal")
     ax_a.set_xticks(-2:1:2)
-    ax_a.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = 19)
-    ax_a.set_title("\$X_{MSE} = −2\\,R_M\$"; fontsize = 20, pad = 7)
-    ax_a.text(0.02, 0.93, "a"; transform = ax_a.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+    ax_a.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_a.set_ylabel("\$Z_{MSE}\$ (\$R_M\$)"; fontsize = st.label)
+    ax_a.set_title("\$X_{MSE} = −2\\,R_M\$"; fontsize = st.title, pad = 7)
+    ax_a.text(0.02, 0.93, "(a)"; transform = ax_a.transAxes, fontsize = st.panel, fontweight = "bold", va = "top", ha = "left", zorder = 10)
 
     # (b) Magnetic field (nT)
-    ax_b.axhline(0.0; color = "0.65", lw = 0.8)
-    ax_b.plot(d.y_Rm, d.b_nT[1, :]; color = "red", lw = 1.9, label = "\$B_x\$")
-    ax_b.plot(d.y_Rm, d.b_nT[4, :]; color = "black", lw = 1.9, label = "\$|B_t|\$")
+    ax_b.axhline(0.0; color = REF_GRAY, lw = 0.9)
+    ax_b.plot(d.y_Rm, d.b_nT[1, :]; color = SET2_ORANGE, lw = st.lw_curve, label = "\$B_x\$")
+    ax_b.plot(d.y_Rm, d.b_nT[4, :]; color = COL_TOTAL, lw = st.lw_curve, label = "\$|B_t|\$")
     ax_b.set_xlim(y_min_plot, y_max_plot)
     ax_b.set_ylim(-15.0, 17.0)
     ax_b.set_xticks(y_ticks_plot)
-    ax_b.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_b.set_ylabel("Magnetic field (nT)"; fontsize = 19)
-    ax_b.legend(loc = "center right", frameon = false, fontsize = 17)
-    ax_b.text(0.03, 0.93, "b"; transform = ax_b.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
+    ax_b.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_b.set_ylabel("Magnetic field (nT)"; fontsize = st.label)
+    ax_b.legend(loc = "center right", frameon = false, fontsize = st.legend)
+    ax_b.text(0.03, 0.93, "(b)"; transform = ax_b.transAxes, fontsize = st.panel, fontweight = "bold", va = "top", ha = "left")
 
-    # (c) PSD vs Y_MSE and Energy on black background with horizontal inset colorbar
-    ax_c.set_facecolor("black")
-    cmap_c = matplotlib.cm.get_cmap("turbo").copy()
-    cmap_c.set_bad(color = "black")
+    # (c) PSD vs Y_MSE and Energy on dark-gray background with horizontal inset colorbar
+    ax_c.set_facecolor(PAPER_BAD_COLOR)
+    cmap_c = paper_cmap_continuous()
     psd_plot = copy(permutedims(d.psd))
     psd_plot[psd_plot .<= 0.0] .= NaN
     norm_c = matplotlib.colors.LogNorm(vmin = 1.0e-12, vmax = 1.0e-7)
@@ -182,21 +174,21 @@ function plot_fig7(
     ax_c.set_xlim(y_min_plot, y_max_plot)
     ax_c.set_ylim(1.0e1, 1.0e4)
     ax_c.set_xticks(y_ticks_plot)
-    ax_c.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_c.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
-    ax_c.set_ylabel("Energy (eV)"; fontsize = 19)
-    ax_c.text(0.03, 0.93, "c"; transform = ax_c.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+    ax_c.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_c.tick_params(axis = "y", which = "minor", length = st.min_sz, width = st.min_w)
+    ax_c.set_ylabel("Energy (eV)"; fontsize = st.label)
+    ax_c.text(0.03, 0.93, "(c)"; transform = ax_c.transAxes, color = "white", fontsize = st.panel, fontweight = "bold", va = "top", ha = "left", zorder = 10)
 
     cax_c = ax_c.inset_axes([0.20, 0.80, 0.75, 0.068])
     cb_c = fig.colorbar(im_c; cax = cax_c, orientation = "horizontal")
     cb_c.ax.xaxis.set_ticks_position("bottom")
-    cb_c.ax.tick_params(which = "major", labelsize = 14.5, colors = "white", length = 4.5, width = 1.1, pad = 2.0)
+    cb_c.ax.tick_params(which = "major", labelsize = st.annot_sm, colors = "white", length = 4.5, width = 1.1, pad = 2.0)
     cb_c.ax.tick_params(which = "minor", colors = "white", length = 2.5, width = 0.9)
     cb_c.outline.set_edgecolor("white")
-    cb_c.ax.set_title("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = 15.5, color = "white", pad = 4.0)
+    cb_c.ax.set_title("PSD (s\$^3\$ m\$^{-6}\$)"; fontsize = st.annot, color = "white", pad = 4.0)
 
     # (d) Bulk velocity (km/s)
-    ax_d.axhline(0.0; color = "0.65", lw = 0.8)
+    ax_d.axhline(0.0; color = REF_GRAY, lw = 0.9)
     valid_u = d.dens_m3 .> 0.0
     u_kms = fill(NaN, 4, length(d.y_Rm))
     for i in eachindex(d.y_Rm)
@@ -205,31 +197,30 @@ function plot_fig7(
             u_kms[4, i] = norm(@view u_kms[1:3, i])
         end
     end
-    ax_d.plot(d.y_Rm, u_kms[1, :]; color = "black", lw = 1.9, ls = "-", label = "\$U_x\$")
-    ax_d.plot(d.y_Rm, u_kms[2, :]; color = "#0072B2", lw = 1.9, ls = "-", label = "\$U_y\$")
-    ax_d.plot(d.y_Rm, u_kms[3, :]; color = "#D55E00", lw = 1.9, ls = "-", label = "\$U_z\$")
-    ax_d.plot(d.y_Rm, u_kms[4, :]; color = "#009E73", lw = 1.9, ls = "--", label = "\$U_t\$")
+    ax_d.plot(d.y_Rm, u_kms[1, :]; color = COL_TOTAL, lw = st.lw_curve, ls = "-", label = "\$U_x\$")
+    ax_d.plot(d.y_Rm, u_kms[2, :]; color = SET2_BLUE, lw = st.lw_curve, ls = "-", label = "\$U_y\$")
+    ax_d.plot(d.y_Rm, u_kms[3, :]; color = SET2_ORANGE, lw = st.lw_curve, ls = "-", label = "\$U_z\$")
+    ax_d.plot(d.y_Rm, u_kms[4, :]; color = SET2_TEAL, lw = st.lw_curve, ls = "--", label = "\$U_t\$")
     ax_d.set_xlim(y_min_plot, y_max_plot)
-    ax_d.set_ylim(-42.0, 52.0)
+    ax_d.set_ylim(-42.0, 62.0)
     ax_d.set_xticks(y_ticks_plot)
-    ax_d.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = 18.5, length = 7.5, width = 1.4)
-    ax_d.set_ylabel("Bulk velocity (km s\$^{-1}\$)"; fontsize = 19)
-    ax_d.legend(loc = "center left", bbox_to_anchor = (1.01, 0.5), frameon = false, fontsize = 17)
-    ax_d.text(0.03, 0.93, "d"; transform = ax_d.transAxes, fontsize = 21, fontweight = "bold", va = "top", ha = "left")
+    ax_d.tick_params(axis = "both", which = "major", labelbottom = false, labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+    ax_d.set_ylabel("Bulk velocity (km s\$^{-1}\$)"; fontsize = st.label)
+    ax_d.legend(loc = "upper right", ncol = 2, frameon = true, facecolor = "white", edgecolor = "none", framealpha = 0.85, fontsize = st.legend, columnspacing = 0.9, handlelength = 1.6)
+    ax_d.text(0.03, 0.93, "(d)"; transform = ax_d.transAxes, fontsize = st.panel, fontweight = "bold", va = "top", ha = "left")
 
-    # (e)-(h) Mean cumulative work 2x2 grid on black background with RdBu_r [-300, 300] eV scale
-    cmap_w = matplotlib.cm.get_cmap("RdBu_r").copy()
-    cmap_w.set_bad(color = "black")
+    # (e)-(h) Mean cumulative work 2x2 grid on dark-gray background with RdBu_r [-300, 300] eV scale
+    cmap_w = paper_cmap_diverging()
     occ_perm = permutedims(d.occ_mask)
     work_panels = (
-        (ax_e, d.w_conv, 1.0, "e", "\$\\langle\\varepsilon_C\\rangle\$", false, true),
-        (ax_f, d.w_hall, 1.0, "f", "\$\\langle\\varepsilon_H\\rangle\$", false, false),
-        (ax_g, d.w_grad, 5.0, "g", "\$5 \\times \\langle\\varepsilon_A\\rangle\$", true, true),
-        (ax_h, d.w_tot, 1.0, "h", "\$\\langle\\varepsilon_T\\rangle\$", true, false),
+        (ax_e, d.w_conv, 1.0, "(e)", "\$\\langle\\varepsilon_C\\rangle\$", false, true),
+        (ax_f, d.w_hall, 1.0, "(f)", "\$\\langle\\varepsilon_H\\rangle\$", false, false),
+        (ax_g, d.w_grad, 5.0, "(g)", "\$5 \\times \\langle\\varepsilon_A\\rangle\$", true, true),
+        (ax_h, d.w_tot, 1.0, "(h)", "\$\\langle\\varepsilon_T\\rangle\$", true, false),
     )
     im_w = nothing
     for (ax, mat, scale, tag, sym_lbl, show_x, show_y) in work_panels
-        ax.set_facecolor("black")
+        ax.set_facecolor(PAPER_BAD_COLOR)
         mat_plot = copy(permutedims(mat .* scale))
         mat_plot[.!occ_perm .| .!isfinite.(mat_plot)] .= NaN
         im_w = ax.pcolormesh(d.y_Rm, d.ec, mat_plot; cmap = cmap_w, vmin = -300.0, vmax = 300.0, shading = "auto", rasterized = true)
@@ -237,20 +228,22 @@ function plot_fig7(
         ax.set_xlim(y_min_plot, y_max_plot)
         ax.set_ylim(1.0e1, 1.0e4)
         ax.set_xticks(y_ticks_plot)
-        ax.tick_params(axis = "both", which = "major", labelsize = 18.5, length = 7.5, width = 1.4)
-        ax.tick_params(axis = "y", which = "minor", length = 4.5, width = 1.1)
+        ax.tick_params(axis = "both", which = "major", labelsize = st.tick, length = st.maj_sz, width = st.maj_w)
+        ax.tick_params(axis = "y", which = "minor", length = st.min_sz, width = st.min_w)
         if show_x
-            ax.set_xlabel("\$Y_{MSE}\$ (\$R_M\$)"; fontsize = 19.5)
+            ax.set_xlabel("\$Y_{MSE}\$ (\$R_M\$)"; fontsize = st.label)
         else
             ax.tick_params(labelbottom = false)
         end
         if show_y
-            ax.set_ylabel("Energy (eV)"; fontsize = 19)
+            ax.set_ylabel("Energy (eV)"; fontsize = st.label)
         else
             ax.tick_params(labelleft = false)
         end
-        ax.text(0.03, 0.93, tag; transform = ax.transAxes, color = "white", fontsize = 21, fontweight = "bold", va = "top", ha = "left", zorder = 10)
-        ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, color = "white", fontsize = 21, va = "top", ha = "right", zorder = 10)
+        ax.text(0.03, 0.93, tag; transform = ax.transAxes, color = "white", fontsize = st.panel, fontweight = "bold", va = "top", ha = "left", zorder = 10)
+        pe = PyPlot.PyCall.pyimport("matplotlib.patheffects")
+        txt_e = ax.text(0.96, 0.92, sym_lbl; transform = ax.transAxes, color = "white", fontsize = round(st.panel * 1.25; digits = 1), fontweight = "bold", va = "top", ha = "right", zorder = 10)
+        txt_e.set_path_effects([pe.withStroke(linewidth = 0.9, foreground = "white")])
     end
 
     fig.canvas.draw()
@@ -261,8 +254,7 @@ function plot_fig7(
     cbar_w_ax = ax_h.inset_axes([1.035, 0.0, 0.042, y_top_rel])
     cb_w = fig.colorbar(im_w; cax = cbar_w_ax)
     cb_w.set_ticks(-300:100:300)
-    cb_w.ax.tick_params(which = "major", labelsize = 17, length = 6.0, width = 1.3)
-    cb_w.set_label("Mean cumulative work (eV)"; fontsize = 19)
+    style_colorbar!(cb_w, st; label = "Mean cumulative work (eV)")
 
     mkpath(dirname(abspath(out_png)))
     fig.savefig(out_png; dpi = 300, bbox_inches = "tight")
